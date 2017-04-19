@@ -80,7 +80,9 @@
 
 (defmulti ^:private pass-add-loggers (fn [e] (when (seq? e) (first e))))
 
+
 (defmethod pass-add-loggers 'quote [expr] expr)
+
 
 (defmethod pass-add-loggers nil [e]
   (cond (seq? e)
@@ -96,6 +98,7 @@
                          (map pass-add-loggers (vals e)))
 
         :default e))
+
 
 (defmethod pass-add-loggers :default [e]
   (if-let [m-key (-> e meta ::key)]
@@ -115,6 +118,7 @@
 
 (defmethod pass-add-loggers 'letfn* [[_ bind & bodies]]
   `(letfn* ~bind ~@(map pass-add-loggers bodies)))
+
 
 (defn- print-line
   "Prints an expression on a single line.
@@ -165,8 +169,6 @@
      expr)
     {:out (str out), :bars @bars}))
 
-;; (print-line '(do 1 2 (echo :a 3) (let (call 4 4))))
-;; (print-line '(do {:a (1) :b (2)}))
 
 (defn- pass-add-keys [expr]
   (let [id         (atom 0)
@@ -200,8 +202,6 @@
                                    :when (contains? @state# v#)]
                                [k# (get @state# v#)])))))})))
 
-;; (map (comp deref val) (eval (emit-code '(+ (* 1 2) (- 4 5)))))
-
 
 (defmacro assert
   ([e] (assert e ""))
@@ -211,16 +211,7 @@
         (when-not @(:result code#)
           (throw (new AssertionError (str ~msg \newline @(:print code#)))))))))
 
-; (macroexpand-code '(and 1 2 nil 4 5))
-; (assert (and 1  nil 2 3))
 
-;; TODO: and/or macro result is not shown why
-;; TODO: masks for threading. wrap single items in lists with :unwrap meta key
-;;       - unwrap them before displaying for print\
-;; TODO: maybe add logging to keywords iff they are unique in the expression
-;; TODO: maybe add logging to some variable bindings, who knows.
-
-;; print expression to output with subvalues examined.
 (defmacro examine
   "Prints expression to output. Returns value of expression."
   [expr]
@@ -230,14 +221,4 @@
      (println @(:print code#))
      result#))
 
-;(examine (= (:a {:a (str "asd")}) (or (+ 1 2) (+ 3 4) (+ 5 6)) (+ 2 (- 4 3 (* 2 3 4)))))
-
-;(examine (let [a (+ 1 2) b (* 3 4)] (* (+ a b) (- a b))))
-
-;(examine (map (fn [a] (+ a 1)) [1 2 3 4]))
-
-;(examine (doall (for [i [1 2 3 4]] (inc i))))
-
-;(examine (doseq [i [1 2 3 4]] (print (* i i)) (print (* 2 i))))
-
-; (macroexpand-code '(doseq [i [1 2 3]] XXXX YYYY))
+'good
