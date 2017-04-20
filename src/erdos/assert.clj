@@ -1,6 +1,7 @@
 (ns erdos.assert
   "A small library for power assertions support in Clojure."
-  (:refer-clojure :exclude [assert]))
+  (:refer-clojure :exclude [assert])
+  (:require [clojure.test :as test]))
 
 
 (defn- quoted? [x] (and (seq? x) ('#{quote clojure.core/quote} (first x))))
@@ -220,5 +221,19 @@
      (println)
      (println @(:print code#))
      result#))
+
+;; TODO: test this.
+(defmacro is
+  ([expr] (is expr nil))
+  ([expr msg]
+   `(try
+      (let [code# (emit-code ~expr)]
+        (if-let [res# @(:result code#)]
+          (do-report {:type :pass, :message ~msg, :expected '~expr, :actual res#})
+          (do-report {:type :fail, :message (str ~msg \newline @(:print code#)),
+                      :expected '~expr, :actual res#})))
+      (catch Throwable t#
+        (test/do-report
+         {:type :error, :message ~msg, :expected '~expr, :actual t#})))))
 
 'good
