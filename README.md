@@ -22,7 +22,7 @@ This library provides two small macros for easier debugging.
 (require '[erdos.assert :as ea])`
 ```
 
-**Examining** simple expressions.
+**Examining** simple expressions will print to `*out*`.
 
 ``` clojure
 $ (ea/examine (* (+ 19 17) (- 19 17)))
@@ -72,7 +72,6 @@ $ (ea/examine (dotimes [i 5] (print (* i i))))
 
 ## License
 
-Copyright © 2017 FIXME
+Copyright © 2018 Janos Erdos
 
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+Distributed under the Eclipse Public License either version 1.0.
