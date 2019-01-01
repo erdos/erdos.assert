@@ -39,40 +39,43 @@
     expr
     (walk (partial postwalk-code f) f expr)))
 
+(defn- draw-line [heights]
+  (->
+   (fn [{:keys [x' result]}
+               [x {:keys [width height string]}]]
+             (dotimes [t (- x x')] (print " "))
+             (if (pos? height)
+               (do (print "¦")
+                   {:x'     (+ x 1)
+                    :result (assoc result x {:width width
+                                             :height (dec height)
+                                             :string string})})
+               (do (print string)
+                   (print " ")
+                   {:x' (+ x width)
+                    :result result})))
+   (reduce {:x' 0, :result (sorted-map)} heights)
+   (doto (do (println))) ;; print a new line after evaluated.
+   :result))
 
 (defn print-bars [x->vals]
+  (assert (map? x->vals))
   (let [x->str (into {} (for [[x vs] x->vals]
                           [x (clojure.string/join ", " (map pr-str vs))]))
-        x->m (into (sorted-map) (for [[x s] x->str] [x {:str s}]))
-        xs   (reverse (keys x->m))
         rf   (fn [m x]
                (let [width (inc (count (x->str x)))
                      x-max (+ x width)
                      h     (apply max 0 (map (comp :height val) (subseq m > x < x-max)))]
                  (assoc m x {:height (inc h)
                              :string (x->str x)
-                             :width  width})))
-        heights   (reduce rf (sorted-map) xs)
-        draw-line (fn [heights]
-                    (->
-                     (reduce (fn [{:keys [x' result]}
-                                  [x {:keys [width height string]}]]
-                               (dotimes [t (- x x')] (print " "))
-                               (if (pos? height)
-                                 (do (print "¦")
-                                     {:x'     (+ x 1)
-                                      :result (assoc result x {:width width
-                                                               :height (dec height)
-                                                               :string string})})
-                                 (do
-                                   (print string) (print " ")
-                                   {:x' (+ x width)
-                                    :result result})))
-                             {:x' 0, :result (sorted-map)} heights)
-                     (doto (do (println))) ;; print a new line after evaluated.
-                     :result
-                     ))]
-    (dorun (take-while seq (iterate draw-line heights)))))
+                             :width  width})))]
+    (->> (keys x->vals)
+         (sort)
+         (reverse)
+         (reduce rf (sorted-map))
+         (iterate draw-line)
+         (take-while seq)
+         (dorun))))
 
 
 (defn- macroexpand-code [form]
@@ -233,6 +236,12 @@
      (println)
      (println @(:print code#))
      result#))
+
+(comment
+
+  (examine (assoc {} :c (+ 1 2 3 4 (* 3 4 5))))
+
+  comment)
 
 ;; TODO: test this.
 #_
