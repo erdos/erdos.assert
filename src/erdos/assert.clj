@@ -151,23 +151,26 @@
        (cond
          (or (seq? expr) (list? expr))
          (do (strout "(")
-             (print (first expr)) ;; we do not eval all fn calls
-             (doseq [y (next expr)]
-               (space) (act y))
+             (when (seq expr)
+               (print (first expr)) ;; we do not eval fn heads
+               (doseq [y (next expr)]
+                 (space) (act y)))
              (strout ")"))
 
          (vector? expr) ;; the same
          (do (strout "[")
-             (act (first expr))
-             (doseq [x (next expr)]
-               (space) (act x))
+             (when (seq expr)
+               (act (first expr))
+               (doseq [x (next expr)]
+                 (space) (act x)))
              (strout "]"))
 
          (set? expr) ;; the same
          (do (strout "#{")
-             (act (first expr))
-             (doseq [x (next expr)]
-               (space) (act x))
+             (when (seq expr)
+               (act (first expr))
+               (doseq [x (next expr)]
+                 (space) (act x)))
              (strout "}"))
 
          (map? expr) ;; the same
@@ -197,7 +200,7 @@
    expr))
 
 
-(defmacro emit-code [expr]
+(defmacro -emit-code [expr]
   (let [keyed-expr (pass-add-keys expr)
         keyed-expanded-expr (macroexpand-code keyed-expr)
         logged-exprs (pass-add-loggers keyed-expanded-expr)
@@ -223,7 +226,7 @@
   ([e] (assert e ""))
   ([e msg]
    (when *assert*
-     `(let [code# (emit-code ~e)]
+     `(let [code# (-emit-code ~e)]
         (when-not @(:result code#)
           (throw (new AssertionError (str ~msg \newline @(:print code#)))))))))
 
@@ -231,7 +234,7 @@
 (defmacro examine
   "Prints expression to output. Returns value of expression."
   [expr]
-  `(let [code# (emit-code ~expr)
+  `(let [code# (-emit-code ~expr)
          result# @(:result code#)]
      (println)
      (println @(:print code#))
@@ -249,7 +252,7 @@
   ([expr] (is expr nil))
   ([expr msg]
    `(try
-      (let [code# (emit-code ~expr)]
+      (let [code# (-emit-code ~expr)]
         (if-let [res# @(:result code#)]
           (test/do-report {:type :pass, :message ~msg, :expected '~expr, :actual res#})
           (test/do-report {:type :fail, :message (str ~msg \newline @(:print code#)),
