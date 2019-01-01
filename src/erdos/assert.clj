@@ -3,12 +3,14 @@
   (:refer-clojure :exclude [assert])
   (:require [clojure.test :as test]))
 
+(set! *warn-on-reflection* true)
 
-(defn- quoted? [x] (and (seq? x) ('#{quote clojure.core/quote} (first x))))
-
+(defn- quoted?
+  "Decides if parameter is a quoted sexp form."
+  [x] (boolean (and (seq? x) ('#{quote clojure.core/quote} (first x)))))
 
 (defn- walk
-  "Like clojure.walk/walk but preserves meta."
+  "Like clojure.walk/walk but preserves meta map."
   [inner outer form]
   (cond
     (list? form) (outer (with-meta (apply list (map inner form)) (meta form)))
@@ -25,7 +27,9 @@
     :else (outer form)))
 
 
-(defn- prewalk [f form] (walk (partial prewalk f) identity (f form)))
+(defn- prewalk
+  "Like clojure.walk/prewalk but preserves meta map."
+  [f form] (walk (partial prewalk f) identity (f form)))
 
 
 (defn- postwalk-code
@@ -72,16 +76,21 @@
 
 
 (defn- macroexpand-code [form]
-  (prewalk (fn [x] (if (quoted? x) x
-                       (let [e (macroexpand x)]
-                         (if (instance? clojure.lang.IObj e)
-                           (with-meta e (meta x))
-                           e)))) form))
+  (prewalk
+   (fn [x]
+     (if (quoted? x)
+       x
+       (let [e (macroexpand x)]
+         (if (instance? clojure.lang.IObj e)
+           (with-meta e (meta x))
+           e))))
+   form))
 
 
 (defmulti ^:private pass-add-loggers (fn [e] (when (seq? e) (first e))))
 
 
+;; augments a clojure expression by adding logging to marked subexpressions.
 (defmethod pass-add-loggers 'quote [expr] expr)
 
 
@@ -160,9 +169,10 @@
 
          (map? expr) ;; the same
          (do (strout "{")
-             (act (key (first expr))) (space) (act (val (first expr)))
-             (doseq [x (next expr)]
-               (strout ", ") (act (val x)) (space) (act (key x)))
+             (when (seq expr)
+               (act (key (first expr))) (space) (act (val (first expr)))
+               (doseq [x (next expr)]
+                 (strout ", ") (act (val x)) (space) (act (key x))))
              (strout "}"))
 
          :default
@@ -171,17 +181,17 @@
     {:out (str out), :bars @bars}))
 
 
-(defn- pass-add-keys [expr]
-  (let [id         (atom 0)
-        gen-id     (partial swap! id inc)
-        f (fn [e]  (cond (quoted? e) e
-                         ;; (instance? clojure.lang.IObj e) (with-meta e (assoc (meta e)) ::key (gen-id))
-
-                         (or (list? e) (seq? e) (symbol? e))
-                         (with-meta e (assoc (meta e) ::key (gen-id)))
-
-                         :default e))]
-    (postwalk-code f expr)))
+(defn- pass-add-keys
+  "Adds a random ::key metadata to all subexpressions."
+  [expr]
+  (postwalk-code
+   (fn [e]
+     (cond (quoted? e) e
+           (or (list? e)
+               (seq? e)
+               (symbol? e)) (vary-meta e assoc ::key (list 'quote (gensym "powerassert")))
+           :default e))
+   expr))
 
 
 (defmacro emit-code [expr]
@@ -205,6 +215,8 @@
 
 
 (defmacro assert
+  "Power assert macro.
+   Like clojure.core/assert but the thrown AssertionError message contains the expression examined."
   ([e] (assert e ""))
   ([e msg]
    (when *assert*
@@ -223,15 +235,16 @@
      result#))
 
 ;; TODO: test this.
+#_
 (defmacro is
   ([expr] (is expr nil))
   ([expr msg]
    `(try
       (let [code# (emit-code ~expr)]
         (if-let [res# @(:result code#)]
-          (do-report {:type :pass, :message ~msg, :expected '~expr, :actual res#})
-          (do-report {:type :fail, :message (str ~msg \newline @(:print code#)),
-                      :expected '~expr, :actual res#})))
+          (test/do-report {:type :pass, :message ~msg, :expected '~expr, :actual res#})
+          (test/do-report {:type :fail, :message (str ~msg \newline @(:print code#)),
+                           :expected '~expr, :actual res#})))
       (catch Throwable t#
         (test/do-report
          {:type :error, :message ~msg, :expected '~expr, :actual t#})))))
