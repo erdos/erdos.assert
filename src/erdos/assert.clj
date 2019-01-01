@@ -59,7 +59,7 @@
    :result))
 
 (defn print-bars [x->vals]
-  (assert (map? x->vals))
+  (clojure.core/assert (map? x->vals))
   (let [x->str (into {} (for [[x vs] x->vals]
                           [x (clojure.string/join ", " (map pr-str vs))]))
         rf   (fn [m x]
@@ -132,17 +132,27 @@
 (defmethod pass-add-loggers 'letfn* [[_ bind & bodies]]
   `(letfn* ~bind ~@(map pass-add-loggers bodies)))
 
+(defn- print-line-prep
+  "Returns a triple of:
+   - a function that prints to a local buffer
+   - an atom holding the current horizontal offset
+   - a delay holding the string value of the print buffer"
+  []
+  (let [pad (atom 0)
+        out  (new java.lang.StringBuilder)
+        strout   (fn [x]
+                   (.append out (str x))
+                   (swap! pad + (count x)))]
+    [strout
+     pad
+     (delay (str out))]))
 
 (defn- print-line
   "Prints an expression on a single line.
    Calculates positions of annotated objects in string."
   [expr]
-  (let [pad  (atom 0)
-        out  (new java.lang.StringBuilder)
-        bars (atom {})
-        strout   (fn [x]
-                   (.append out (str x))
-                   (swap! pad + (count x)))
+  (let [[strout pad out-delay] (print-line-prep)
+        bars     (atom {})
         space    (partial strout " ")
         print    (comp strout pr-str)]
     ((fn act [expr]
@@ -184,7 +194,7 @@
          :default
          (print expr)))
      expr)
-    {:out (str out), :bars @bars}))
+    {:out @out-delay, :bars @bars}))
 
 
 (defn- pass-add-keys
