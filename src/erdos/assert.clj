@@ -216,7 +216,7 @@
         logged-exprs (pass-add-loggers keyed-expanded-expr)
         line-to-print (print-line keyed-expr)]
     `(let [state# (atom {})
-           ~'log  (fn [i# val#] (swap! state# update i# conj val#) val#)
+           ~'log  (fn [i# val#] (swap! state# update i# (fnil conj []) val#) val#)
            e#     (delay ~logged-exprs)]
        {:result e#
         :state  (delay @e# @state#)
