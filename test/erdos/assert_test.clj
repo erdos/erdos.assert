@@ -17,6 +17,7 @@
     (testing "Lazy"
       (is (= "(0 …)" (tester (range))))
       (is (= "(0 1 2 …)" (tester (doto (range) (->> (take 3) (dorun))))))
+      (is (= "(…)" (tester (take 10 (range)))))
       (is (= "(…)" (tester (lazy-seq nil))))
       (is (= "(1 2 …)" (tester (list* 1 2 (lazy-seq nil)))))
       (is (= "(1 2 0 …)" (tester (list* 1 2 (range)))))

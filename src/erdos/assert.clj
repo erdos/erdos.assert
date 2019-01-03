@@ -224,12 +224,7 @@
            :default e))
    expr))
 
-;; TODO: ha ezeket kicserelem akkor szetesik az egesz!
-(defn- safe-pr-str [obj]
-  #_(:out (print-line obj))
-  (pr-str obj))
-
-;; (print-line [1 "2" :3 '4])
+(defn- safe-pr-str [obj] (:out (print-line obj)))
 
 (defn print-bars [x->vals]
   (clojure.core/assert (map? x->vals))
