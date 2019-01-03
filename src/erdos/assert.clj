@@ -229,6 +229,8 @@
   #_(:out (print-line obj))
   (pr-str obj))
 
+;; (print-line [1 "2" :3 '4])
+
 (defn print-bars [x->vals]
   (clojure.core/assert (map? x->vals))
   (let [x->str (into {} (for [[x vs] x->vals]
