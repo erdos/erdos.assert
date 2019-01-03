@@ -173,7 +173,8 @@
   [expr]
   (let [[strout pad out-delay] (print-line-prep)
         bars     (atom {})
-        space    (partial strout " ")]
+        space    (partial strout " ")
+        print (comp strout pr-str)]
     ((fn act [expr]
        (when-let [m-key (-> expr meta ::key)]
          (swap! bars assoc @pad m-key))
@@ -223,7 +224,10 @@
            :default e))
    expr))
 
-(defn- safe-pr-str [obj] (:out (print-line obj)))
+;; TODO: ha ezeket kicserelem akkor szetesik az egesz!
+(defn- safe-pr-str [obj]
+  #_(:out (print-line obj))
+  (pr-str obj))
 
 (defn print-bars [x->vals]
   (clojure.core/assert (map? x->vals))

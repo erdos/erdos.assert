@@ -22,6 +22,7 @@
       (is (= "(1 2 0 …)" (tester (list* 1 2 (range)))))
       (is (= "(0 1 2 3 4 5 6 7 8 9)" (tester (range 10)))))))
 
+;; TODO: test for printing quoted form!
 
 (deftest test-examine-1
   (testing "Let forms"
