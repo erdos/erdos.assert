@@ -2,8 +2,47 @@
   (:require [clojure.test :refer :all]
             [erdos.assert :as ea]))
 
-; (ea/examine (* (+ 19 17) (- 19 17)))
+;; TODO: do the same to macros maybe?
+(let [target (the-ns 'erdos.assert)]
+  (doseq [[k v] (ns-map target)
+          :when (and (var? v) (= target (.ns v)))]
+    (eval `(defn ~(symbol (str "-" k)) [~'& args#]
+             (apply (deref ~v) args#)))))
 
+(deftest test-print-line-seq
+  (letfn [(tester [x] (with-out-str (-print-line-seq print print x)))]
+    (testing "Not lazy"
+      (is (= "(1 2 3 4)" (tester '(1 2 3 4))))
+      (is (= "(1 2)" (tester (seq [1 2])))))
+    (testing "Lazy"
+      (is (= "(0 …)" (tester (range))))
+      (is (= "(0 1 2 …)" (tester (doto (range) (->> (take 3) (dorun))))))
+      (is (= "(…)" (tester (lazy-seq nil))))
+      (is (= "(1 2 …)" (tester (list* 1 2 (lazy-seq nil)))))
+      (is (= "(1 2 0 …)" (tester (list* 1 2 (range)))))
+      (is (= "(0 1 2 3 4 5 6 7 8 9)" (tester (range 10)))))))
+
+
+(deftest test-examine-1
+  (testing "Let forms"
+    )
+  (testing "Function forms")
+  (testing "Macros"
+    (testing "Second branch of macro is not printed"
+      (ea/examine-str (and (* 1 2) (+ 1 2)))))
+  (testing "Multiple values"
+    (ea/examine-str (dotimes [i 4] (println (* i i)))))
+  (testing "Function call"
+    (is (= [[3 3 4]
+            "(vector (+ 1 2) 3 4)\n¦       ¦\n[3 3 4] 3 \n"]
+           (ea/examine-str (vector (+ 1 2) 3 4))))))
+
+
+                                        ; (ea/examine (* (+ 19 17) (- 19 17)))
+
+;
+
+; (ea
 
                                         ;(examine (= (:a {:a (str "asd")}) (or (+ 1 2) (+ 3 4) (+ 5 6)) (+ 2 (- 4 3 (* 2 3 4)))))
 
