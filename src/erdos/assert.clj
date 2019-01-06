@@ -309,7 +309,7 @@
      `(let [code# (-emit-code ~e)]
         (when-not @(:result code#)
           (->> @(:print code#)
-               (str ~@(when (seq msg) [~msg \newline]))
+               (str ~@(if (seq msg) [~msg \newline] ["Assertion failed." \newline]))
                (new AssertionError)
                (throw)))))))
 
