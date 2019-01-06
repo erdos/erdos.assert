@@ -176,7 +176,7 @@
     (strout ellipsis)
     (let [tails   (take-while some? (iterate rest* expr))
           [as bs] (split-with-rest rest* #(and (some? %) (not (lazy? %))) tails)]
-      (when (seq as)
+      (when (seq (first as))
         (print (ffirst as)))
 
       (doseq [a (next as) ;; itt megallunk.

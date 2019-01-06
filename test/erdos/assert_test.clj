@@ -14,7 +14,7 @@
     (testing "Not lazy lists."
       (is (= "(1 2 3 4)" (tester '(1 2 3 4))))
       (is (= "(1 2)" (tester (seq [1 2]))))
-      (is (= "()" (tester (list))))
+      (is (= "(1)" (tester '(1))))
       (is (= "()" (tester ()))))
     (testing "Vectors."
       (is (= "[1 2 3]" (tester (vector 1 2 3))))
