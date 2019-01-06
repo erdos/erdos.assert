@@ -2,6 +2,9 @@
 
 Power assert macro for Clojure.
 
+[![Clojars Project](https://img.shields.io/clojars/v/io.github.erdos/erdos.assert.svg)](https://clojars.org/io.github.erdos/erdos.assert)
+[![EPL 1.0](https://img.shields.io/badge/License-EPL%201.0-red.svg)](https://www.eclipse.org/legal/epl-1.0/)
+
 ## Usage
 
 This library provides two small macros for easier debugging.
@@ -16,13 +19,15 @@ This library provides two small macros for easier debugging.
 
 ```
 
+
 **Second**, require the namespace:
 
 ``` clojure
 (require '[erdos.assert :as ea])`
 ```
 
-**Examining** simple expressions will print to `*out*`.
+
+In the REPL, **examining** simple expressions will print to `*out*`.
 
 ``` clojure
 $ (ea/examine (* (+ 19 17) (- 19 17)))
@@ -32,8 +37,8 @@ $ (ea/examine (* (+ 19 17) (- 19 17)))
 
 ```
 
-You can also write **assertions** that will wrap examined data as a string in the `AssertionError` instance.
 
+You can also write **assertions** that will wrap examined data as a string in the `AssertionError` instance.
 
 ``` clojure
 $ (ea/assert (= 1 (* 3 (/ 1 3)) "") ; does not print anything
@@ -72,6 +77,6 @@ $ (ea/examine (dotimes [i 5] (print (* i i))))
 
 ## License
 
-Copyright © 2018 Janos Erdos
+Copyright © 2019 Janos Erdos
 
-Distributed under the Eclipse Public License either version 1.0.
+Distributed under the [Eclipse Public License version 1.0](https://www.eclipse.org/legal/epl-1.0/).
