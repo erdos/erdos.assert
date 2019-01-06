@@ -9,12 +9,15 @@
     (eval `(defn ~(symbol (str "-" k)) [~'& args#]
              (apply (deref ~v) args#)))))
 
-(deftest test-print-line-seq
-  (letfn [(tester [x] (with-out-str (-print-line-seq print print x)))]
-    (testing "Not lazy"
+(deftest test-print-line-impl
+  (letfn [(tester [x] (with-out-str (-print-line-impl print print x)))]
+    (testing "Not lazy lists."
       (is (= "(1 2 3 4)" (tester '(1 2 3 4))))
       (is (= "(1 2)" (tester (seq [1 2])))))
-    (testing "Lazy"
+    (testing "Vectors."
+      (is (= "[1 2 3]" (tester (vector 1 2 3))))
+      (is (= "[]" (tester (vector)))))
+    (testing "Lazy lists."
       (is (= "(0 …)" (tester (range))))
       (is (= "(0 1 2 …)" (tester (doto (range) (->> (take 3) (dorun))))))
       (is (= "(…)" (tester (take 10 (range)))))

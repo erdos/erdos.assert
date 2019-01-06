@@ -4,11 +4,14 @@
   (:require [clojure.test :as test]
             [clojure.string :as s]))
 
+
 (set! *warn-on-reflection* true)
+
 
 (defn- quoted?
   "Decides if parameter is a quoted sexp form."
   [x] (boolean (and (seq? x) ('#{quote clojure.core/quote} (first x)))))
+
 
 (defn- walk
   "Like clojure.walk/walk but preserves meta map."
@@ -40,6 +43,7 @@
     expr
     (walk (partial postwalk-code f) f expr)))
 
+
 (defn- draw-line [heights]
   (->
    (fn [{:keys [x' result]}
@@ -59,7 +63,10 @@
    (doto (do (println))) ;; print a new line after evaluated.
    :result))
 
-(defn- macroexpand-code [form]
+
+(defn- macroexpand-code
+  "Like clojure.walk/macroexpand-all but preserves meta and does not expand quoted forms."
+  [form]
   (prewalk
    (fn [x]
      (if (quoted? x)
@@ -102,22 +109,23 @@
 ;; TODO: handle fn* too
 
 (defmethod pass-add-loggers 'let* [[_ bindings & bodies]]
-  `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)]
-                          [k (pass-add-loggers v)]
-                          ))]
+  `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)] [k (pass-add-loggers v)]))]
      ~@(map pass-add-loggers bodies)))
+
 
 (defmethod pass-add-loggers 'do [[_ & bodies]]
   `(do ~@(map pass-add-loggers bodies)))
 
+
 (defmethod pass-add-loggers 'letfn* [[_ bind & bodies]]
   `(letfn* ~bind ~@(map pass-add-loggers bodies)))
 
+
 (defn- print-line-prep
-  "Returns a triple of:
-   - a function that prints to a local buffer
-   - an atom holding the current horizontal offset
-   - a delay holding the string value of the print buffer"
+  "Creates a buffer and a writer function. Returns a triple of:
+   - A function that prints to a local buffer.
+   - An atom holding the current horizontal offset.
+   - A delay holding the string value of the print buffer."
   []
   (let [pad (atom 0)
         out  (new java.lang.StringBuilder)
@@ -128,18 +136,27 @@
      pad
      (delay (str out))]))
 
+
 (defn- lazy? [x] (and (instance? clojure.lang.IPending x) (not (realized? x))))
+
 
 (def ^:private ellipsis "…")
 
-(defn rest* [x]
+
+(defn rest*
+  "Like clojure.core/rest but returns nil when form is already realized and tail is nil."
+  [x]
   (as->
       (cond
         (instance? clojure.lang.Cons x) (.more ^clojure.lang.Cons x)
         :otherwise (rest x))
       * (if (lazy? *) * (seq *))))
 
-(defn- split-with-rest [rest f xs1]
+
+(defn- split-with-rest
+  "Like clojure.core/split-with but eagerly produces the first part of the result tuple
+   and uses the rest function from the first argument."
+  [rest f xs1]
   (loop [xs xs1
          consumed []]
     (if-let [[x] (seq xs)]
@@ -148,7 +165,12 @@
         [(seq consumed) xs])
       [xs1 nil])))
 
-(defn- print-line-seq [strout print expr]
+
+(defmulti ^:private print-line-impl (fn [print-string print-child-fn expr] (type expr)))
+
+
+;; Prints lists in the usual edn format. Lazy parts of the lists are printed with ellipsis.
+(defmethod print-line-impl java.util.List [strout print expr]
   (strout "(")
   (if (lazy? expr)
     (strout ellipsis)
@@ -167,47 +189,55 @@
         (strout ellipsis))))
   (strout ")"))
 
+
+(defmethod print-line-impl clojure.lang.IPersistentVector [strout print expr]
+  (strout "[")
+  (when (seq expr)
+    (print (first expr))
+    (doseq [x (next expr)]
+      (strout " ") (print x)))
+  (strout "]"))
+
+
+(prefer-method print-line-impl clojure.lang.IPersistentVector java.util.List)
+
+
+(defmethod print-line-impl java.util.Set [strout print expr]
+  (strout "#{")
+  (when (seq expr)
+    (print (first expr))
+    (doseq [x (next expr)]
+      (strout " ") (print x)))
+  (strout "}"))
+
+
+(defmethod print-line-impl java.util.Map [strout act expr]
+  (strout "{")
+  (when (seq expr)
+    (act (key (first expr)))
+    (strout " ")
+    (act (val (first expr)))
+    (doseq [x (next expr)]
+      (strout ", ") (act (val x)) (strout " ") (act (key x))))
+  (strout "}"))
+
+
+(defmethod print-line-impl :default [strout act expr] (strout (pr-str expr)))
+
+
 (defn- print-line
   "Prints an expression on a single line.
-   Calculates positions of annotated objects in string."
+   Calculates positions of annotated objects in string.
+   Returns a map of keys:
+   - :out holds a string of print result
+   - :bars holds a map of horizontal offset to ::key identifier."
   [expr]
   (let [[strout pad out-delay] (print-line-prep)
-        bars     (atom {})
-        space    (partial strout " ")
-        print (comp strout pr-str)]
+        bars     (atom {})]
     ((fn act [expr]
        (when-let [m-key (-> expr meta ::key)]
-         (swap! bars assoc @pad m-key))
-       (cond
-         (or (seq? expr) (list? expr))
-         (print-line-seq strout act expr)
-
-         (vector? expr) ;; the same
-         (do (strout "[")
-             (when (seq expr)
-               (act (first expr))
-               (doseq [x (next expr)]
-                 (space) (act x)))
-             (strout "]"))
-
-         (set? expr) ;; the same
-         (do (strout "#{")
-             (when (seq expr)
-               (act (first expr))
-               (doseq [x (next expr)]
-                 (space) (act x)))
-             (strout "}"))
-
-         (map? expr) ;; the same
-         (do (strout "{")
-             (when (seq expr)
-               (act (key (first expr))) (space) (act (val (first expr)))
-               (doseq [x (next expr)]
-                 (strout ", ") (act (val x)) (space) (act (key x))))
-             (strout "}"))
-
-         :default
-         (print expr)))
+         (swap! bars assoc (int @pad) m-key))
+       (print-line-impl strout act expr))
      expr)
     {:out @out-delay, :bars @bars}))
 
@@ -224,7 +254,9 @@
            :default e))
    expr))
 
-(defn- safe-pr-str [obj] (:out (print-line obj)))
+
+(defn safe-pr-str [obj] (:out (print-line obj)))
+
 
 (defn print-bars [x->vals]
   (clojure.core/assert (map? x->vals))
@@ -244,6 +276,7 @@
          (take-while seq)
          (dorun))))
 
+
 (defmacro -emit-code [expr]
   (let [keyed-expr (pass-add-keys expr)
         keyed-expanded-expr (macroexpand-code keyed-expr)
@@ -258,7 +291,7 @@
        {:result e#
         :state  (delay @e# @state#)
         :print  (delay
-                 @e#
+                 (deref e#)
                  (with-out-str
                    (println ~(:out line-to-print))
                    (print-bars
@@ -277,12 +310,14 @@
         (when-not @(:result code#)
           (throw (new AssertionError (str ~msg \newline @(:print code#)))))))))
 
+
 (defmacro examine-str
   "Returns tuple of evaluated value and examined string."
   [expr]
   `(let [code# (-emit-code ~expr)]
      [@(:result code#)
       @(:print code#)]))
+
 
 (defmacro examine
   "Prints expression to *out*. Returns value of expression."
@@ -292,11 +327,6 @@
      (println printable#)
      result#))
 
-(comment
-
-  (examine (assoc {} :c (+ 1 2 3 4 (* 3 4 5))))
-
-  comment)
 
 ;; TODO: test this.
 #_
