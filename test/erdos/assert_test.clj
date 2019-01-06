@@ -11,6 +11,18 @@
 
 (deftest test-print-line-impl
   (letfn [(tester [x] (with-out-str (-print-line-impl print print x)))]
+    (testing "Special cases"
+      (is (= "'(+ 1 2 3)" (tester '(quote (+ 1 2 3))))))
+    (testing "Raw types"
+      (is (= "asdf" (tester 'asdf)))
+      (is (= "\"asdf\"" (tester "asdf")))
+      (is (= ":x" (tester :x)))
+      (is (= ":x/y" (tester :x/y)))
+      (is (= "123M" (tester 123M)))
+      (is (= "12.2" (tester 12.2)))
+      (is (= "1/3" (tester 1/3)))
+      (is (= "nil" (tester nil)))
+      (is (= "true" (tester true))))
     (testing "Not lazy lists."
       (is (= "(1 2 3 4)" (tester '(1 2 3 4))))
       (is (= "(1 2)" (tester (seq [1 2]))))

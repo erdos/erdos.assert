@@ -171,23 +171,28 @@
 
 ;; Prints lists in the usual edn format. Lazy parts of the lists are printed with ellipsis.
 (defmethod print-line-impl java.util.List [strout print expr]
-  (strout "(")
-  (if (lazy? expr)
-    (strout ellipsis)
-    (let [tails   (take-while some? (iterate rest* expr))
-          [as bs] (split-with-rest rest* #(and (some? %) (not (lazy? %))) tails)]
-      (when (seq (first as))
-        (print (ffirst as)))
+  (if (and (list? expr) (= 'quote (first expr)) (= 2 (count expr)))
+    (do ;; if quoted form
+      (strout "'")
+      (print (second expr)))
+    (do
+      (strout "(")
+      (if (lazy? expr)
+        (strout ellipsis)
+        (let [tails   (take-while some? (iterate rest* expr))
+              [as bs] (split-with-rest rest* #(and (some? %) (not (lazy? %))) tails)]
+          (when (seq (first as))
+            (print (ffirst as)))
 
-      (doseq [a (next as) ;; itt megallunk.
-              :while (seq a)]
-        (strout " ")
-        (print (first a)))
+          (doseq [a (next as) ;; itt megallunk.
+                  :while (seq a)]
+            (strout " ")
+            (print (first a)))
 
-      (when bs
-        (when (seq as) (strout " "))
-        (strout ellipsis))))
-  (strout ")"))
+          (when bs
+            (when (seq as) (strout " "))
+            (strout ellipsis))))
+      (strout ")"))))
 
 
 (defmethod print-line-impl clojure.lang.IPersistentVector [strout print expr]
