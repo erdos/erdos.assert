@@ -228,8 +228,7 @@
 
 (defn print-bars [x->vals]
   (clojure.core/assert (map? x->vals))
-  (let [x->str (into {} (for [[x vs] x->vals]
-                          [x (s/join ", " (map safe-pr-str vs))]))
+  (let [x->str (into {} (for [[x vs] x->vals] [x (s/join ", " vs)]))
         rf   (fn [m x]
                (let [width (inc (count (x->str x)))
                      x-max (+ x width)
@@ -251,7 +250,10 @@
         logged-exprs (pass-add-loggers keyed-expanded-expr)
         line-to-print (print-line keyed-expr)]
     `(let [state# (atom {})
-           ~'log  (fn [i# val#] (swap! state# update i# (fnil conj []) val#) val#)
+           ~'log  (fn [i# val#]
+                    ;; we stringify here because values may change during evaluation
+                    (swap! state# update i# (fnil conj []) (safe-pr-str val#))
+                    val#)
            e#     (delay ~logged-exprs)]
        {:result e#
         :state  (delay @e# @state#)
