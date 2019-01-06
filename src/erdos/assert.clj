@@ -310,6 +310,14 @@
         (when-not @(:result code#)
           (throw (new AssertionError (str ~msg \newline @(:print code#)))))))))
 
+(defmacro ensure
+  "Like assert but throws ExceptionInfo when condition does not hold and can not be turned off with *assert* var."
+  ([e] (ensure e ""))
+  ([e msg]
+   `(let [code# (-emit-code ~e)]
+      (when-not @(:result code#)
+        (throw (ex-info (str ~msg \newline @(:print code#))
+                        {:form (quote ~e) :print @(:print code#)}))))))
 
 (defmacro examine-str
   "Returns tuple of evaluated value and examined string."

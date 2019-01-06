@@ -1,6 +1,6 @@
-# erdos.assert
+# Power assert macro for Clojure.
 
-Power assert macro for Clojure.
+I love the [Power Assertions](http://groovy-lang.org/testing.html#_power_assertions) feature in the Groovy language. It makes writing tests and finding bugs easier. Allow me to present a simple Clojure implementation!
 
 [![Clojars Project](https://img.shields.io/clojars/v/io.github.erdos/erdos.assert.svg)](https://clojars.org/io.github.erdos/erdos.assert)
 [![EPL 1.0](https://img.shields.io/badge/License-EPL%201.0-red.svg)](https://www.eclipse.org/legal/epl-1.0/)
