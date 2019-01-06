@@ -218,7 +218,7 @@
     (strout " ")
     (act (val (first expr)))
     (doseq [x (next expr)]
-      (strout ", ") (act (val x)) (strout " ") (act (key x))))
+      (strout ", ") (act (key x)) (strout " ") (act (val x))))
   (strout "}"))
 
 

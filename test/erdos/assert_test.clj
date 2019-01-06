@@ -13,10 +13,16 @@
   (letfn [(tester [x] (with-out-str (-print-line-impl print print x)))]
     (testing "Not lazy lists."
       (is (= "(1 2 3 4)" (tester '(1 2 3 4))))
-      (is (= "(1 2)" (tester (seq [1 2])))))
+      (is (= "(1 2)" (tester (seq [1 2]))))
+      (is (= "()" (tester (list))))
+      (is (= "()" (tester ()))))
     (testing "Vectors."
       (is (= "[1 2 3]" (tester (vector 1 2 3))))
-      (is (= "[]" (tester (vector)))))
+      (is (= "[]" (tester (vector)) (tester []))))
+    (testing "Maps."
+      (is (= "{}" (tester {})))
+      (is (= "{}" (tester (new java.util.HashMap))))
+      (is (= "{1 2, 3 4}" (tester (hash-map 1 2 3 4)))))
     (testing "Lazy lists."
       (is (= "(0 …)" (tester (range))))
       (is (= "(0 1 2 …)" (tester (doto (range) (->> (take 3) (dorun))))))
