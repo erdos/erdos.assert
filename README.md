@@ -74,6 +74,11 @@ $ (ea/examine (dotimes [i 5] (print (* i i))))
 ;                nil, nil, nil, nil, nil
 ```
 
+Only the already realized part is printed for lazy sequences.
+
+```clojure
+TODO: example here!
+```
 
 ## License
 

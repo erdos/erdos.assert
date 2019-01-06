@@ -21,7 +21,7 @@
     (instance? clojure.lang.IMapEntry form) (outer (vec (map inner form)))
     (seq? form) (outer (doall (with-meta (map inner form) (meta form))))
 
-    (set? form) (outer (with-meta (set (map inner form)) (meta form)))
+    (set? form) (outer (with-meta (into (empty form) (map inner form)) (meta form)))
     (map? form) (outer (with-meta (into (empty form) (map inner form)) (meta form)))
     (vector? form) (outer (with-meta (mapv inner form) (meta form)))
 
@@ -303,16 +303,19 @@
 (defmacro assert
   "Power assert macro.
    Like clojure.core/assert but the thrown AssertionError message contains the expression examined."
-  ([e] (assert e ""))
+  ([e] `(assert ~e ""))
   ([e msg]
    (when *assert*
      `(let [code# (-emit-code ~e)]
         (when-not @(:result code#)
-          (throw (new AssertionError (str ~msg \newline @(:print code#)))))))))
+          (->> @(:print code#)
+               (str ~@(when (seq msg) [~msg \newline]))
+               (new AssertionError)
+               (throw)))))))
 
 (defmacro ensure
   "Like assert but throws ExceptionInfo when condition does not hold and can not be turned off with *assert* var."
-  ([e] (ensure e ""))
+  ([e] `(ensure ~e ""))
   ([e msg]
    `(let [code# (-emit-code ~e)]
       (when-not @(:result code#)
