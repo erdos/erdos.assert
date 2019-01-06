@@ -1,12 +1,12 @@
-# Power assert macro for Clojure.
+# Power Assertion macro for Clojure
 
-I love the [Power Assertions](http://groovy-lang.org/testing.html#_power_assertions) feature in the Groovy language. It makes writing tests and finding bugs easier. Allow me to present a simple Clojure implementation!
+I love the [Power Assertions](http://groovy-lang.org/testing.html#_power_assertions) feature in the Groovy language. It makes writing tests and finding bugs easier. This is an implementation for the Clojure programming language with support for macros and lazy sequences.
 
 It prints subexpressions on assert failure.
 
 <img src="docs/animation-1.gif"/>
 
-And all evaluations of a subexpressions are printed.
+And all evaluations of subexpressions are printed.
 
 <img src="docs/animation-3.gif"/>
 
@@ -23,7 +23,7 @@ This library provides two small macros for easier debugging.
 **First**, add the dependency to your `project.clj`.
 
 ``` clojure
-[erdos.assert "0.1.0-SNAPSHOT"]
+[erdos.assert "0.1.0"]
 
 ```
 
@@ -85,7 +85,22 @@ $ (ea/examine (dotimes [i 5] (print (* i i))))
 Only the already realized part is printed for lazy sequences.
 
 ```clojure
-TODO: example here!
+erdos.assert=> (examine (reduce + (map * (range) (range 0 10 2))))
+
+(reduce + (map * (range) (range 0 10 2)))
+¦         ¦      ¦       ¦
+60        (…)    (0 …)   (0 2 4 6 8) 
+```
+
+In such cases you might want to run [doall](https://clojuredocs.org/clojure.core/doall) on intermediate lazy sequences.
+
+```clojure
+erdos.assert=> (examine (reduce + (doall (map * (range) (range 0 10 2)))))
+
+(reduce + (doall (map * (range) (range 0 10 2))))
+¦         ¦      ¦      ¦       ¦
+60        ¦      (…)    (0 …)   (0 2 4 6 8) 
+          (0 2 8 18 32) 
 ```
 
 ## License
