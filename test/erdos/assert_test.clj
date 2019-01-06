@@ -2,8 +2,70 @@
   (:require [clojure.test :refer :all]
             [erdos.assert :as ea]))
 
-; (ea/examine (* (+ 19 17) (- 19 17)))
+;; TODO: do the same to macros maybe?
+(let [target (the-ns 'erdos.assert)]
+  (doseq [[k v] (ns-map target)
+          :when (and (var? v) (= target (.ns v)))]
+    (eval `(defn ~(symbol (str "-" k)) [~'& args#]
+             (apply (deref ~v) args#)))))
 
+(deftest test-print-line-impl
+  (letfn [(tester [x] (with-out-str (-print-line-impl print print x)))]
+    (testing "Special cases"
+      (is (= "'(+ 1 2 3)" (tester '(quote (+ 1 2 3))))))
+    (testing "Raw types"
+      (is (= "asdf" (tester 'asdf)))
+      (is (= "\"asdf\"" (tester "asdf")))
+      (is (= ":x" (tester :x)))
+      (is (= ":x/y" (tester :x/y)))
+      (is (= "123M" (tester 123M)))
+      (is (= "12.2" (tester 12.2)))
+      (is (= "1/3" (tester 1/3)))
+      (is (= "nil" (tester nil)))
+      (is (= "true" (tester true))))
+    (testing "Not lazy lists."
+      (is (= "(1 2 3 4)" (tester '(1 2 3 4))))
+      (is (= "(1 2)" (tester (seq [1 2]))))
+      (is (= "(1)" (tester '(1))))
+      (is (= "()" (tester ()))))
+    (testing "Vectors."
+      (is (= "[1 2 3]" (tester (vector 1 2 3))))
+      (is (= "[]" (tester (vector)) (tester []))))
+    (testing "Maps."
+      (is (= "{}" (tester {})))
+      (is (= "{}" (tester (new java.util.HashMap))))
+      (is (= "{1 2, 3 4}" (tester (hash-map 1 2 3 4)))))
+    (testing "Lazy lists."
+      (is (= "(0 …)" (tester (range))))
+      (is (= "(0 1 2 …)" (tester (doto (range) (->> (take 3) (dorun))))))
+      (is (= "(…)" (tester (take 10 (range)))))
+      (is (= "(…)" (tester (lazy-seq nil))))
+      (is (= "(1 2 …)" (tester (list* 1 2 (lazy-seq nil)))))
+      (is (= "(1 2 0 …)" (tester (list* 1 2 (range)))))
+      (is (= "(0 1 2 3 4 5 6 7 8 9)" (tester (range 10)))))))
+
+;; TODO: test for printing quoted form!
+
+(deftest test-examine-1
+  (testing "Let forms"
+    )
+  (testing "Function forms")
+  (testing "Macros"
+    (testing "Second branch of macro is not printed"
+      (ea/examine-str (and (* 1 2) (+ 1 2)))))
+  (testing "Multiple values"
+    (ea/examine-str (dotimes [i 4] (println (* i i)))))
+  (testing "Function call"
+    (is (= [[3 3 4]
+            "(vector (+ 1 2) 3 4)\n¦       ¦\n[3 3 4] 3 \n"]
+           (ea/examine-str (vector (+ 1 2) 3 4))))))
+
+
+                                        ; (ea/examine (* (+ 19 17) (- 19 17)))
+
+;
+
+; (ea
 
                                         ;(examine (= (:a {:a (str "asd")}) (or (+ 1 2) (+ 3 4) (+ 5 6)) (+ 2 (- 4 3 (* 2 3 4)))))
 

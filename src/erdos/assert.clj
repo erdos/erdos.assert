@@ -1,13 +1,17 @@
 (ns erdos.assert
   "A small library for power assertions support in Clojure."
   (:refer-clojure :exclude [assert])
-  (:require [clojure.test :as test]))
+  (:require [clojure.test :as test]
+            [clojure.string :as s]))
+
 
 (set! *warn-on-reflection* true)
+
 
 (defn- quoted?
   "Decides if parameter is a quoted sexp form."
   [x] (boolean (and (seq? x) ('#{quote clojure.core/quote} (first x)))))
+
 
 (defn- walk
   "Like clojure.walk/walk but preserves meta map."
@@ -17,7 +21,7 @@
     (instance? clojure.lang.IMapEntry form) (outer (vec (map inner form)))
     (seq? form) (outer (doall (with-meta (map inner form) (meta form))))
 
-    (set? form) (outer (with-meta (set (map inner form)) (meta form)))
+    (set? form) (outer (with-meta (into (empty form) (map inner form)) (meta form)))
     (map? form) (outer (with-meta (into (empty form) (map inner form)) (meta form)))
     (vector? form) (outer (with-meta (mapv inner form) (meta form)))
 
@@ -39,6 +43,7 @@
     expr
     (walk (partial postwalk-code f) f expr)))
 
+
 (defn- draw-line [heights]
   (->
    (fn [{:keys [x' result]}
@@ -58,27 +63,10 @@
    (doto (do (println))) ;; print a new line after evaluated.
    :result))
 
-(defn print-bars [x->vals]
-  (clojure.core/assert (map? x->vals))
-  (let [x->str (into {} (for [[x vs] x->vals]
-                          [x (clojure.string/join ", " (map pr-str vs))]))
-        rf   (fn [m x]
-               (let [width (inc (count (x->str x)))
-                     x-max (+ x width)
-                     h     (apply max 0 (map (comp :height val) (subseq m > x < x-max)))]
-                 (assoc m x {:height (inc h)
-                             :string (x->str x)
-                             :width  width})))]
-    (->> (keys x->vals)
-         (sort)
-         (reverse)
-         (reduce rf (sorted-map))
-         (iterate draw-line)
-         (take-while seq)
-         (dorun))))
 
-
-(defn- macroexpand-code [form]
+(defn- macroexpand-code
+  "Like clojure.walk/macroexpand-all but preserves meta and does not expand quoted forms."
+  [form]
   (prewalk
    (fn [x]
      (if (quoted? x)
@@ -121,22 +109,23 @@
 ;; TODO: handle fn* too
 
 (defmethod pass-add-loggers 'let* [[_ bindings & bodies]]
-  `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)]
-                          [k (pass-add-loggers v)]
-                          ))]
+  `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)] [k (pass-add-loggers v)]))]
      ~@(map pass-add-loggers bodies)))
+
 
 (defmethod pass-add-loggers 'do [[_ & bodies]]
   `(do ~@(map pass-add-loggers bodies)))
 
+
 (defmethod pass-add-loggers 'letfn* [[_ bind & bodies]]
   `(letfn* ~bind ~@(map pass-add-loggers bodies)))
 
+
 (defn- print-line-prep
-  "Returns a triple of:
-   - a function that prints to a local buffer
-   - an atom holding the current horizontal offset
-   - a delay holding the string value of the print buffer"
+  "Creates a buffer and a writer function. Returns a triple of:
+   - A function that prints to a local buffer.
+   - An atom holding the current horizontal offset.
+   - A delay holding the string value of the print buffer."
   []
   (let [pad (atom 0)
         out  (new java.lang.StringBuilder)
@@ -147,52 +136,113 @@
      pad
      (delay (str out))]))
 
+
+(defn- lazy? [x] (and (instance? clojure.lang.IPending x) (not (realized? x))))
+
+
+(def ^:private ellipsis "…")
+
+
+(defn rest*
+  "Like clojure.core/rest but returns nil when form is already realized and tail is nil."
+  [x]
+  (as->
+      (cond
+        (instance? clojure.lang.Cons x) (.more ^clojure.lang.Cons x)
+        :otherwise (rest x))
+      * (if (lazy? *) * (seq *))))
+
+
+(defn- split-with-rest
+  "Like clojure.core/split-with but eagerly produces the first part of the result tuple
+   and uses the rest function from the first argument."
+  [rest f xs1]
+  (loop [xs xs1
+         consumed []]
+    (if-let [[x] (seq xs)]
+      (if (f x)
+        (recur (rest xs) (conj consumed x))
+        [(seq consumed) xs])
+      [xs1 nil])))
+
+
+(defmulti ^:private print-line-impl (fn [print-string print-child-fn expr] (type expr)))
+
+
+;; Prints lists in the usual edn format. Lazy parts of the lists are printed with ellipsis.
+(defmethod print-line-impl java.util.List [strout print expr]
+  (if (and (list? expr) (= 'quote (first expr)) (= 2 (count expr)))
+    (do ;; if quoted form
+      (strout "'")
+      (print (second expr)))
+    (do
+      (strout "(")
+      (if (lazy? expr)
+        (strout ellipsis)
+        (let [tails   (take-while some? (iterate rest* expr))
+              [as bs] (split-with-rest rest* #(and (some? %) (not (lazy? %))) tails)]
+          (when (seq (first as))
+            (print (ffirst as)))
+
+          (doseq [a (next as) ;; itt megallunk.
+                  :while (seq a)]
+            (strout " ")
+            (print (first a)))
+
+          (when bs
+            (when (seq as) (strout " "))
+            (strout ellipsis))))
+      (strout ")"))))
+
+
+(defmethod print-line-impl clojure.lang.IPersistentVector [strout print expr]
+  (strout "[")
+  (when (seq expr)
+    (print (first expr))
+    (doseq [x (next expr)]
+      (strout " ") (print x)))
+  (strout "]"))
+
+
+(prefer-method print-line-impl clojure.lang.IPersistentVector java.util.List)
+
+
+(defmethod print-line-impl java.util.Set [strout print expr]
+  (strout "#{")
+  (when (seq expr)
+    (print (first expr))
+    (doseq [x (next expr)]
+      (strout " ") (print x)))
+  (strout "}"))
+
+
+(defmethod print-line-impl java.util.Map [strout act expr]
+  (strout "{")
+  (when (seq expr)
+    (act (key (first expr)))
+    (strout " ")
+    (act (val (first expr)))
+    (doseq [x (next expr)]
+      (strout ", ") (act (key x)) (strout " ") (act (val x))))
+  (strout "}"))
+
+
+(defmethod print-line-impl :default [strout act expr] (strout (pr-str expr)))
+
+
 (defn- print-line
   "Prints an expression on a single line.
-   Calculates positions of annotated objects in string."
+   Calculates positions of annotated objects in string.
+   Returns a map of keys:
+   - :out holds a string of print result
+   - :bars holds a map of horizontal offset to ::key identifier."
   [expr]
   (let [[strout pad out-delay] (print-line-prep)
-        bars     (atom {})
-        space    (partial strout " ")
-        print    (comp strout pr-str)]
+        bars     (atom {})]
     ((fn act [expr]
        (when-let [m-key (-> expr meta ::key)]
-         (swap! bars assoc @pad m-key))
-       (cond
-         (or (seq? expr) (list? expr))
-         (do (strout "(")
-             (when (seq expr)
-               (print (first expr)) ;; we do not eval fn heads
-               (doseq [y (next expr)]
-                 (space) (act y)))
-             (strout ")"))
-
-         (vector? expr) ;; the same
-         (do (strout "[")
-             (when (seq expr)
-               (act (first expr))
-               (doseq [x (next expr)]
-                 (space) (act x)))
-             (strout "]"))
-
-         (set? expr) ;; the same
-         (do (strout "#{")
-             (when (seq expr)
-               (act (first expr))
-               (doseq [x (next expr)]
-                 (space) (act x)))
-             (strout "}"))
-
-         (map? expr) ;; the same
-         (do (strout "{")
-             (when (seq expr)
-               (act (key (first expr))) (space) (act (val (first expr)))
-               (doseq [x (next expr)]
-                 (strout ", ") (act (val x)) (space) (act (key x))))
-             (strout "}"))
-
-         :default
-         (print expr)))
+         (swap! bars assoc (int @pad) m-key))
+       (print-line-impl strout act expr))
      expr)
     {:out @out-delay, :bars @bars}))
 
@@ -210,18 +260,43 @@
    expr))
 
 
+(defn safe-pr-str [obj] (:out (print-line obj)))
+
+
+(defn print-bars [x->vals]
+  (clojure.core/assert (map? x->vals))
+  (let [x->str (into {} (for [[x vs] x->vals] [x (s/join ", " vs)]))
+        rf   (fn [m x]
+               (let [width (inc (count (x->str x)))
+                     x-max (+ x width)
+                     h     (apply max 0 (map (comp :height val) (subseq m > x < x-max)))]
+                 (assoc m x {:height (inc h)
+                             :string (x->str x)
+                             :width  width})))]
+    (->> (keys x->vals)
+         (sort)
+         (reverse)
+         (reduce rf (sorted-map))
+         (iterate draw-line)
+         (take-while seq)
+         (dorun))))
+
+
 (defmacro -emit-code [expr]
   (let [keyed-expr (pass-add-keys expr)
         keyed-expanded-expr (macroexpand-code keyed-expr)
         logged-exprs (pass-add-loggers keyed-expanded-expr)
         line-to-print (print-line keyed-expr)]
     `(let [state# (atom {})
-           ~'log  (fn [i# val#] (swap! state# update i# (fnil conj []) val#) val#)
+           ~'log  (fn [i# val#]
+                    ;; we stringify here because values may change during evaluation
+                    (swap! state# update i# (fnil conj []) (safe-pr-str val#))
+                    val#)
            e#     (delay ~logged-exprs)]
        {:result e#
         :state  (delay @e# @state#)
         :print  (delay
-                 @e#
+                 (deref e#)
                  (with-out-str
                    (println ~(:out line-to-print))
                    (print-bars
@@ -233,28 +308,41 @@
 (defmacro assert
   "Power assert macro.
    Like clojure.core/assert but the thrown AssertionError message contains the expression examined."
-  ([e] (assert e ""))
+  ([e] `(assert ~e ""))
   ([e msg]
    (when *assert*
      `(let [code# (-emit-code ~e)]
         (when-not @(:result code#)
-          (throw (new AssertionError (str ~msg \newline @(:print code#)))))))))
+          (->> @(:print code#)
+               (str ~@(if (seq msg) [~msg \newline] ["Assertion failed." \newline]))
+               (new AssertionError)
+               (throw)))))))
+
+(defmacro ensure
+  "Like assert but throws ExceptionInfo when condition does not hold and can not be turned off with *assert* var."
+  ([e] `(ensure ~e ""))
+  ([e msg]
+   `(let [code# (-emit-code ~e)]
+      (when-not @(:result code#)
+        (throw (ex-info (str ~msg \newline @(:print code#))
+                        {:form (quote ~e) :print @(:print code#)}))))))
+
+(defmacro examine-str
+  "Returns tuple of evaluated value and examined string."
+  [expr]
+  `(let [code# (-emit-code ~expr)]
+     [@(:result code#)
+      @(:print code#)]))
 
 
 (defmacro examine
-  "Prints expression to output. Returns value of expression."
+  "Prints expression to *out*. Returns value of expression."
   [expr]
-  `(let [code# (-emit-code ~expr)
-         result# @(:result code#)]
+  `(let [[result# printable#] (examine-str ~expr)]
      (println)
-     (println @(:print code#))
+     (println printable#)
      result#))
 
-(comment
-
-  (examine (assoc {} :c (+ 1 2 3 4 (* 3 4 5))))
-
-  comment)
 
 ;; TODO: test this.
 #_
