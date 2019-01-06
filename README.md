@@ -6,7 +6,7 @@ It prints subexpressions on assert failure.
 
 <img src="docs/animation-1.gif"/>
 
-And all evaluations of subexpressions are printed.
+And each evaluations of subexpressions are printed.
 
 <img src="docs/animation-3.gif"/>
 
