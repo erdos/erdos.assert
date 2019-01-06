@@ -2,6 +2,14 @@
 
 I love the [Power Assertions](http://groovy-lang.org/testing.html#_power_assertions) feature in the Groovy language. It makes writing tests and finding bugs easier. Allow me to present a simple Clojure implementation!
 
+It prints subexpressions on assert failure.
+
+<img src="docs/animation-1.png"/>
+
+And all evaluations of a subexpressions are printed.
+
+<img src="docs/animation-3.png"/>
+
 [![Clojars Project](https://img.shields.io/clojars/v/io.github.erdos/erdos.assert.svg)](https://clojars.org/io.github.erdos/erdos.assert)
 [![EPL 1.0](https://img.shields.io/badge/License-EPL%201.0-red.svg)](https://www.eclipse.org/legal/epl-1.0/)
 
