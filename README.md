@@ -31,7 +31,7 @@ This library provides two small macros for easier debugging.
 **Second**, require the namespace:
 
 ``` clojure
-(require '[erdos.assert :as ea])`
+(require '[erdos.assert :as ea])
 ```
 
 
