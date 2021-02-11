@@ -255,6 +255,7 @@
   (postwalk-code
    (fn [e]
      (cond (quoted? e) e
+           (= () e) e
            (or (list? e)
                (seq? e)
                (symbol? e)) (vary-meta e assoc ::key (list 'quote (gensym "powerassert")))
