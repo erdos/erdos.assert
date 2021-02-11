@@ -143,7 +143,7 @@
 (def ^:private ellipsis "…")
 
 
-(defn rest*
+(defn- rest*
   "Like clojure.core/rest but returns nil when form is already realized and tail is nil."
   [x]
   (as->
@@ -318,9 +318,9 @@
                (new AssertionError)
                (throw)))))))
 
-(defmacro ensure
+(defmacro verify
   "Like assert but throws ExceptionInfo when condition does not hold and can not be turned off with *assert* var."
-  ([e] `(ensure ~e ""))
+  ([e] `(verify ~e ""))
   ([e msg]
    `(let [code# (-emit-code ~e)]
       (when-not @(:result code#)

@@ -9,6 +9,14 @@
     (eval `(defn ~(symbol (str "-" k)) [~'& args#]
              (apply (deref ~v) args#)))))
 
+(deftest test-verify
+  (is (nil? (ea/verify (= 1 1))))
+  (is (thrown? clojure.lang.ExceptionInfo (ea/verify (= 1 2)))))
+
+(deftest test-assert
+  (is (nil? (ea/assert (= 1 1)))
+  (is (thrown? AssertionError (ea/assert (= 1 2))))))
+
 (deftest test-print-line-impl
   (letfn [(tester [x] (with-out-str (-print-line-impl print print x)))]
     (testing "Special cases"
