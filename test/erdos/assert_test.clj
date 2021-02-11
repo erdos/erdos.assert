@@ -5,7 +5,8 @@
 ;; TODO: do the same to macros maybe?
 (let [target (the-ns 'erdos.assert)]
   (doseq [[k v] (ns-map target)
-          :when (and (var? v) (= target (.ns v)))]
+          :when (and (var? v) (= target (.ns v)))
+          :when (:private (meta v))]
     (eval `(defn ~(symbol (str "-" k)) [~'& args#]
              (apply (deref ~v) args#)))))
 

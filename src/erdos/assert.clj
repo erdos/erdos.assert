@@ -108,17 +108,17 @@
 
 ;; TODO: handle fn* too
 
-(defmethod pass-add-loggers 'let* [[_ bindings & bodies]]
-  `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)] [k (pass-add-loggers v)]))]
-     ~@(map pass-add-loggers bodies)))
-
-
 (defmethod pass-add-loggers 'do [[_ & bodies]]
   `(do ~@(map pass-add-loggers bodies)))
 
-
-(defmethod pass-add-loggers 'letfn* [[_ bind & bodies]]
-  `(letfn* ~bind ~@(map pass-add-loggers bodies)))
+;; not needed. standard macroexpansion handles this case as well.
+;
+; (defmethod pass-add-loggers 'let* [[_ bindings & bodies]]
+;   `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)] [k (pass-add-loggers v)]))]
+;      ~@(map pass-add-loggers bodies)))
+;
+; (defmethod pass-add-loggers 'letfn* [[_ bind & bodies]]
+;   `(letfn* ~bind ~@(map pass-add-loggers bodies)))
 
 
 (defn- print-line-prep
@@ -171,7 +171,7 @@
 
 ;; Prints lists in the usual edn format. Lazy parts of the lists are printed with ellipsis.
 (defmethod print-line-impl java.util.List [strout print expr]
-  (if (and (list? expr) (= 'quote (first expr)) (= 2 (count expr)))
+  (if (and (list? expr) (quoted? expr))
     (do ;; if quoted form
       (strout "'")
       (print (second expr)))
