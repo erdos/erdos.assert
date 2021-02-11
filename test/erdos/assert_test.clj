@@ -65,6 +65,8 @@
   (testing "Multiple values"
     (ea/examine-str (dotimes [i 4] (println (* i i)))))
   (testing "Function call"
+    (is (= [() "()\n"]
+           (ea/examine-str ())))
     (is (= [[3 3 4]
             "(vector (+ 1 2) 3 4)\n¦       ¦\n[3 3 4] 3 \n"]
            (ea/examine-str (vector (+ 1 2) 3 4))))))
