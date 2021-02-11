@@ -168,6 +168,7 @@
 
 (defmulti ^:private print-line-impl (fn [print-string print-child-fn expr] (type expr)))
 
+(defmethod print-line-impl :default [strout act expr] (strout (pr-str expr)))
 
 ;; Prints lists in the usual edn format. Lazy parts of the lists are printed with ellipsis.
 (defmethod print-line-impl java.util.List [strout print expr]
@@ -226,8 +227,9 @@
       (strout ", ") (act (key x)) (strout " ") (act (val x))))
   (strout "}"))
 
-
-(defmethod print-line-impl :default [strout act expr] (strout (pr-str expr)))
+(defmethod print-line-impl clojure.lang.AFunction [strout act expr]
+  (strout "λ ")
+  (strout (.getName (class expr))))
 
 
 (defn- print-line
