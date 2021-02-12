@@ -12,6 +12,9 @@ And each evaluations of subexpressions are printed.
 
 [![Clojars Project](https://img.shields.io/clojars/v/io.github.erdos/erdos.assert.svg)](https://clojars.org/io.github.erdos/erdos.assert)
 [![EPL 1.0](https://img.shields.io/badge/License-EPL%201.0-red.svg)](https://www.eclipse.org/legal/epl-1.0/)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/erdos/erdos.assert/issues)
+[![HitCount](http://hits.dwyl.io/erdos/erdos.assert.svg)](http://hits.dwyl.io/erdos/erdos.assert)
+![Clojure CI](https://github.com/erdos/erdos.assert/workflows/Clojure%20CI/badge.svg)
 
 ## Usage
 
