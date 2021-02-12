@@ -4,4 +4,5 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :repl-options {:init-ns erdos.assert}
+  :global-vars {*warn-on-reflection* true}
   :dependencies [[org.clojure/clojure "1.8.0"]])
