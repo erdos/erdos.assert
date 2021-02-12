@@ -4,8 +4,21 @@
   (:require [clojure.test :as test]
             [clojure.string :as s]))
 
+;; Algorithm consists of the following passes.
+;;
+;; Compile time:
+;; 1. Walk the EDN expression and assign a distinct value to the ::key key in the metadata map of every node.
+;; 2. Execute a special macroexpansion on the expression that preserves metadata maps.
+;; 3. Walk the expanded form and wrap every function call in a logging function.
+;; 4. Print the original expression into a string and calculate the positions of every sub-expression identified by the metadata map value under ::key.
+;;
+;; Runtime:
+;; 1. On evaluation, every logging function call will put the evaluation result into a local state atom.
+;; 2. When evaluated to false, the state atom (R/1) and the positions (C/4) are used to print the diagram to the standard output.
+;;
 
-(set! *warn-on-reflection* true)
+(def ^:private ellipsis "…")
+(def ^:private pipe "¦") ; also check "║" and "│"
 
 
 (defn- quoted?
@@ -50,7 +63,7 @@
                [x {:keys [width height string]}]]
              (dotimes [t (- x x')] (print " "))
              (if (pos? height)
-               (do (print "¦")
+               (do (print pipe)
                    {:x'     (+ x 1)
                     :result (assoc result x {:width width
                                              :height (dec height)
@@ -64,6 +77,17 @@
    :result))
 
 
+(defn- java-method-accessor [x]
+  (when (and (seq? x)
+             (symbol? (first x))
+             (not= '.. (first x))
+             (not= '. (first x))
+             (.startsWith (name (first x)) "."))
+    (symbol (.substring (name (first x)) 1))))
+
+;; TODO: (examine (.substring (.substring "hello" (inc 1)) 1))
+;; too mmuch offset here.
+
 (defn- macroexpand-code
   "Like clojure.walk/macroexpand-all but preserves meta and does not expand quoted forms."
   [form]
@@ -71,10 +95,13 @@
    (fn [x]
      (if (quoted? x)
        x
-       (let [e (macroexpand x)]
-         (if (instance? clojure.lang.IObj e)
-           (with-meta e (meta x))
-           e))))
+       (if-let [accessor-sym (java-method-accessor x)]
+         (let [[member target & args] x]
+           (list* '. target (with-meta accessor-sym (meta member)) (map macroexpand-code args)))
+         (let [e (macroexpand x)]
+           (if (instance? clojure.lang.IObj e)
+             (with-meta e (meta x))
+             e)))))
    form))
 
 
@@ -86,10 +113,7 @@
 
 
 (defmethod pass-add-loggers nil [e]
-  (cond (seq? e)
-        (if-let [m-key (-> e meta ::key)]
-          (list 'log m-key (map pass-add-loggers e))
-          e)
+  (cond ; (seq? e) - other implementations
 
         (vector? e) (mapv pass-add-loggers e)
 
@@ -100,18 +124,43 @@
 
         :default e))
 
+;; name of the global logger method.
+(def ^:private logger-sym '+assert-logger+)
+
 
 (defmethod pass-add-loggers :default [e]
   (if-let [m-key (-> e meta ::key)]
-    (list 'log m-key (map pass-add-loggers e))
+    (list logger-sym m-key (map pass-add-loggers e))
     (map pass-add-loggers e)))
 
-;; TODO: handle fn* too
 
-(defmethod pass-add-loggers 'do [[_ & bodies]]
-  `(do ~@(map pass-add-loggers bodies)))
+(defmethod pass-add-loggers '. [[_ target form & args]]
+  (cond-> (list* '.
+                (pass-add-loggers target)
+                (if (seq? form)
+                  (list (cons (first form) (map pass-add-loggers (next form))))
+                  (list* form (map pass-add-loggers args))))
+    (::key (meta form)) (->> (list logger-sym (::key (meta form))))))
+
+
+;; (examine ((fn* ([x] (inc x))) 3))
+(defmethod pass-add-loggers 'fn* [[_ & clauses]]
+  (if (every? seq? clauses)
+    (list* 'fn* (for [[params & bodies] clauses] (list* params (map pass-add-loggers bodies))))
+    (list* 'fn* (first clauses) (map pass-add-loggers (next clauses)))))
+
+
+(defmethod pass-add-loggers 'finally [[_ & bodies]]
+  (list* 'finally (map pass-add-loggers bodies)))
+
+
+(defmethod pass-add-loggers 'catch [[_ e-type e-name & bodies]]
+  (list* 'catch e-type e-name (map pass-add-loggers bodies)))
 
 ;; not needed. standard macroexpansion handles this case as well.
+;
+; (defmethod pass-add-loggers 'do [[_ & bodies]]
+;  `(do ~@(map pass-add-loggers bodies)))
 ;
 ; (defmethod pass-add-loggers 'let* [[_ bindings & bodies]]
 ;   `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)] [k (pass-add-loggers v)]))]
@@ -129,8 +178,8 @@
   []
   (let [pad (atom 0)
         out  (new java.lang.StringBuilder)
-        strout   (fn [x]
-                   (.append out (str x))
+        strout   (fn [^String x]
+                   (.append out x)
                    (swap! pad + (count x)))]
     [strout
      pad
@@ -138,9 +187,6 @@
 
 
 (defn- lazy? [x] (and (instance? clojure.lang.IPending x) (not (realized? x))))
-
-
-(def ^:private ellipsis "…")
 
 
 (defn- rest*
@@ -156,26 +202,41 @@
 (defn- split-with-rest
   "Like clojure.core/split-with but eagerly produces the first part of the result tuple
    and uses the rest function from the first argument."
-  [rest f xs1]
-  (loop [xs xs1
+  [rest pred coll]
+  (loop [xs coll
          consumed []]
     (if-let [[x] (seq xs)]
-      (if (f x)
+      (if (pred x)
         (recur (rest xs) (conj consumed x))
         [(seq consumed) xs])
-      [xs1 nil])))
+      [coll nil])))
 
 
 (defmulti ^:private print-line-impl (fn [print-string print-child-fn expr] (type expr)))
 
-(defmethod print-line-impl :default [strout act expr] (strout (pr-str expr)))
+
+(defmethod print-line-impl :default [strout _ expr] (strout (pr-str expr)))
+
+
+(defmethod print-line-impl java.lang.Throwable [strout _ expr]
+  (strout "↯ ")
+  (strout (.getName (class expr))))
+
 
 ;; Prints lists in the usual edn format. Lazy parts of the lists are printed with ellipsis.
 (defmethod print-line-impl java.util.List [strout print expr]
-  (if (and (list? expr) (quoted? expr))
+  (cond
+  
+    (and (list? expr) (quoted? expr))
     (do ;; if quoted form
       (strout "'")
       (print (second expr)))
+
+    (and (list? expr) (= 'clojure.core/deref (first expr)))
+    (do (strout "@")
+        (print (second expr)))
+
+    :else
     (do
       (strout "(")
       (if (lazy? expr)
@@ -227,7 +288,7 @@
       (strout ", ") (act (key x)) (strout " ") (act (val x))))
   (strout "}"))
 
-(defmethod print-line-impl clojure.lang.AFunction [strout act expr]
+(defmethod print-line-impl clojure.lang.AFunction [strout _ expr]
   (strout "λ ")
   (strout (.getName (class expr))))
 
@@ -235,9 +296,9 @@
 (defn- print-line
   "Prints an expression on a single line.
    Calculates positions of annotated objects in string.
-   Returns a map of keys:
-   - :out holds a string of print result
-   - :bars holds a map of horizontal offset to ::key identifier."
+   Returns a pair of:
+   - string of the print result
+   - a map of horizontal offset to ::key identifier"
   [expr]
   (let [[strout pad out-delay] (print-line-prep)
         bars     (atom {})]
@@ -246,7 +307,7 @@
          (swap! bars assoc (int @pad) m-key))
        (print-line-impl strout act expr))
      expr)
-    {:out @out-delay, :bars @bars}))
+    [@out-delay @bars]))
 
 
 (defn- pass-add-keys
@@ -263,10 +324,10 @@
    expr))
 
 
-(defn safe-pr-str [obj] (:out (print-line obj)))
+(defn -safe-pr-str [obj] (first (print-line obj)))
 
 
-(defn print-bars [x->vals]
+(defn- print-bars [x->vals]
   (clojure.core/assert (map? x->vals))
   (let [x->str (into {} (for [[x vs] x->vals] [x (s/join ", " vs)]))
         rf   (fn [m x]
@@ -281,31 +342,32 @@
          (reverse)
          (reduce rf (sorted-map))
          (iterate draw-line)
-         (take-while seq)
+         (take-while not-empty)
          (dorun))))
 
 
-(defmacro -emit-code [expr]
-  (let [keyed-expr (pass-add-keys expr)
+(defn -emit-code-print [value-delay print-result-str bars-map state-atom]
+  (delay
+    (deref value-delay)
+    (with-out-str
+      (println print-result-str)
+      (print-bars (into {} (for [[k# v#] bars-map
+                                 :when (contains? @state-atom v#)]
+                              [k# (get @state-atom v#)]))))))
+
+
+(defn- emit-code [expr]
+  (let [keyed-expr          (pass-add-keys expr)
+        [out bars]          (print-line keyed-expr)
         keyed-expanded-expr (macroexpand-code keyed-expr)
-        logged-exprs (pass-add-loggers keyed-expanded-expr)
-        line-to-print (print-line keyed-expr)]
+        logged-exprs        (pass-add-loggers keyed-expanded-expr)]
     `(let [state# (atom {})
-           ~'log  (fn [i# val#]
+           ~logger-sym  (fn [i# val#]
                     ;; we stringify here because values may change during evaluation
-                    (swap! state# update i# (fnil conj []) (safe-pr-str val#))
+                    (swap! state# update i# (fnil conj []) (-safe-pr-str val#))
                     val#)
            e#     (delay ~logged-exprs)]
-       {:result e#
-        :state  (delay @e# @state#)
-        :print  (delay
-                 (deref e#)
-                 (with-out-str
-                   (println ~(:out line-to-print))
-                   (print-bars
-                    (into {} (for [[k# v#] ~(:bars line-to-print)
-                                   :when (contains? @state# v#)]
-                               [k# (get @state# v#)])))))})))
+        [e# (-emit-code-print e# ~out ~bars state#)])))
 
 
 (defmacro assert
@@ -314,28 +376,29 @@
   ([e] `(assert ~e ""))
   ([e msg]
    (when *assert*
-     `(let [code# (-emit-code ~e)]
-        (when-not @(:result code#)
-          (->> @(:print code#)
+     `(let [[result# print#] ~(emit-code e)]
+        (when-not @result#
+          (->> @print#
                (str ~@(if (seq msg) [~msg \newline] ["Assertion failed." \newline]))
                (new AssertionError)
                (throw)))))))
+
 
 (defmacro verify
   "Like assert but throws ExceptionInfo when condition does not hold and can not be turned off with *assert* var."
   ([e] `(verify ~e ""))
   ([e msg]
-   `(let [code# (-emit-code ~e)]
-      (when-not @(:result code#)
-        (throw (ex-info (str ~msg \newline @(:print code#))
-                        {:form (quote ~e) :print @(:print code#)}))))))
+   `(let [[result# print#] ~(emit-code e)]
+      (when-not @result#
+        (throw (ex-info (str ~msg \newline @print#)
+                        {:form (quote ~e) :print @print#}))))))
+
 
 (defmacro examine-str
   "Returns tuple of evaluated value and examined string."
   [expr]
-  `(let [code# (-emit-code ~expr)]
-     [@(:result code#)
-      @(:print code#)]))
+  `(let [[result# print#] ~(emit-code expr)]
+     [@result# @print#]))
 
 
 (defmacro examine
@@ -347,16 +410,15 @@
      result#))
 
 
-;; TODO: test this.
-#_
 (defmacro is
-  ([expr] (is expr nil))
+  ([expr] `(is ~expr nil))
   ([expr msg]
    `(try
-      (let [code# (-emit-code ~expr)]
-        (if-let [res# @(:result code#)]
+      (let [[result# print#] ~(emit-code expr)
+            res#  @result#]
+        (if res#
           (test/do-report {:type :pass, :message ~msg, :expected '~expr, :actual res#})
-          (test/do-report {:type :fail, :message (str ~msg \newline @(:print code#)),
+          (test/do-report {:type :fail, :message (str ~msg \newline @print#),
                            :expected '~expr, :actual res#})))
       (catch Throwable t#
         (test/do-report

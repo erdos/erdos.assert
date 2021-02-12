@@ -2,10 +2,10 @@
   (:require [clojure.test :refer :all]
             [erdos.assert :as ea]))
 
-;; TODO: do the same to macros maybe?
+;; imports all private vars with "-" prefix for testing
 (let [target (the-ns 'erdos.assert)]
   (doseq [[k v] (ns-map target)
-          :when (and (var? v) (= target (.ns v)))
+          :when (and (var? v) (= target (.ns ^clojure.lang.Var v)))
           :when (:private (meta v))]
     (eval `(defn ~(symbol (str "-" k)) [~'& args#]
              (apply (deref ~v) args#)))))
@@ -17,6 +17,21 @@
 (deftest test-assert
   (is (nil? (ea/assert (= 1 1)))
   (is (thrown? AssertionError (ea/assert (= 1 2))))))
+
+(deftest test-lazy?
+  (is (not (-lazy? (range 100))))
+  (is (not (-lazy? [1 2 3])))
+  (is (-lazy? (map inc (range 10))))
+  (is (not (-lazy? (list '1 2 3))))
+  (is (not (-lazy? (seq {1 2 3 4}))))
+  (is (not (-lazy? (seq [1 2 3])))))
+
+(deftest test-java-method-accessor
+  (is (nil? (-java-method-accessor 123)))
+  (is (nil? (-java-method-accessor '(print ""))))
+  (is (nil? (-java-method-accessor '(.. x length))))
+  (is (nil? (-java-method-accessor '(. a b c))))
+  (is (= 'length (-java-method-accessor '(.length "")))))
 
 (deftest test-print-line-impl
   (letfn [(tester [x] (with-out-str (-print-line-impl print print x)))]
@@ -37,6 +52,8 @@
       (is (= "(1 2)" (tester (seq [1 2]))))
       (is (= "(1)" (tester '(1))))
       (is (= "()" (tester ()))))
+    (testing "Dereferencing values"
+      (is (= "@abc" (tester '(clojure.core/deref abc)))))
     (testing "Vectors."
       (is (= "[1 2 3]" (tester (vector 1 2 3))))
       (is (= "[]" (tester (vector)) (tester []))))
@@ -46,9 +63,12 @@
       (is (= "{1 2, 3 4}" (tester (hash-map 1 2 3 4)))))
     (testing "Lazy lists."
       (is (= "(0 …)" (tester (range))))
+      (is (= "(1 2)" (tester (seq [1 2]))))
+      (is (= "([1 2])" (tester (seq {1 2}))))
       (is (= "(0 1 2 …)" (tester (doto (range) (->> (take 3) (dorun))))))
       (is (= "(…)" (tester (take 10 (range)))))
       (is (= "(…)" (tester (lazy-seq nil))))
+      (is (= "(1 2 3)" (tester (list 1 2 3))))
       (is (= "(1 2 …)" (tester (list* 1 2 (lazy-seq nil)))))
       (is (= "(1 2 0 …)" (tester (list* 1 2 (range)))))
       (is (= "(0 1 2 3 4 5 6 7 8 9)" (tester (range 10)))))))
@@ -64,12 +84,22 @@
       (ea/examine-str (and (* 1 2) (+ 1 2)))))
   (testing "Multiple values"
     (ea/examine-str (dotimes [i 4] (println (* i i)))))
+  (testing "Java reflection"
+    (is (= ["llo", "(. \"hello\" substring 2)\n           ¦\n           \"llo\" \n"]
+           (ea/examine-str (. "hello" substring 2))))
+    (is (= ["llo", "(. \"hello\" (substring 2))\n           ¦\n           \"llo\" \n"]
+           (ea/examine-str (. "hello" (substring 2)))))
+    (is (= ["llo" "(.substring \"hello\" 2)\n ¦\n \"llo\" \n"]
+           (ea/examine-str (.substring "hello" 2)))))
   (testing "Function call"
     (is (= [() "()\n"]
            (ea/examine-str ())))
     (is (= [[3 3 4]
             "(vector (+ 1 2) 3 4)\n¦       ¦\n[3 3 4] 3 \n"]
            (ea/examine-str (vector (+ 1 2) 3 4))))))
+
+(deftest test-is
+  (ea/is (= 2 (inc 1))))
 
 
                                         ; (ea/examine (* (+ 19 17) (- 19 17)))
