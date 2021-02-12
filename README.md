@@ -18,40 +18,39 @@ And each evaluations of subexpressions are printed.
 This library provides two small macros for easier debugging.
  - The `examine` macro can be used to trace parts of an evaluated expression. Debug information is printed to the standard output and the value of the expression is returned.
  - The `assert` macro is similar to `clojure.core/assert` but it also wraps the examined information in the thrown `AssertionError` instance.
-
+ - The `is` macro is a drop-in replacement to `clojure.test/is` for unit tests.
 
 **First**, add the dependency to your `project.clj`.
 
-``` clojure
+```clojure
 [erdos.assert "0.1.0"]
-
 ```
-
 
 **Second**, require the namespace:
 
-``` clojure
+```clojure
 (require '[erdos.assert :as ea])
 ```
 
 
 In the REPL, **examining** simple expressions will print to `*out*`.
 
-``` clojure
-$ (ea/examine (* (+ 19 17) (- 19 17)))
-; (* (+ 19 17) (- 19 17))
-; ¦  ¦         ¦
-; 72 36        2
+```clojure
+erdos.assert=> (examine (* (+ 19 17) (- 19 17)))
 
+(* (+ 19 17) (- 19 17))
+¦  ¦         ¦
+72 36        2
 ```
 
 
 You can also write **assertions** that will wrap examined data as a string in the `AssertionError` instance.
 
-``` clojure
-$ (ea/assert (= 1 (* 3 (/ 1 3)) "") ; does not print anything
+```clojure
+erdos.assert=> (assert (= 1 (* 3 (/ 1 3)) "") ; does not print anything
 
-$ (ea/assert (= (* 1.0 1) (* 3 (/ 1 3))) "")
+erdos.assert=> (assert (= (* 1.0 1) (* 3 (/ 1 3))) "")
+
 ; AssertionError
 ; (= (* 1.0 1) (* 3 (/ 1 3)))
 ; ¦  ¦         ¦    ¦
@@ -60,26 +59,28 @@ $ (ea/assert (= (* 1.0 1) (* 3 (/ 1 3))) "")
 ```
 
 
-Shown output is **arranged** to make place for more complex output.
+Shown output is arranged to make place for more complex output.
 
-``` clojure
-$ (ea/examine (+ (* 12 (- 32 12) 12.2) (- 3 (/ 1 2 3 4) 2.2) (* (- 1 2) 3)))
-; (+ (* 12 (- 32 12) 12.2) (- 3 (/ 1 2 3 4) 2.2) (* (- 1 2) 3))
-; ¦  ¦     ¦               ¦    ¦                ¦  ¦
-; ¦  ¦     20              ¦    1/24             -3 -1
-; ¦  2928.0                0.7583333333333329
-; 2925.758333333333
+```clojure
+erdos.assert=> (examine (+ (* 12 (- 32 12) 12.2) (- 3 (/ 1 2 3 4) 2.2) (* (- 1 2) 3)))
+
+(+ (* 12 (- 32 12) 12.2) (- 3 (/ 1 2 3 4) 2.2) (* (- 1 2) 3))
+¦  ¦     ¦               ¦    ¦                ¦  ¦
+¦  ¦     20              ¦    1/24             -3 -1
+¦  2928.0                0.7583333333333329
+2925.758333333333
 ```
 
 
-Some expressions are evaluated **multiple times**, hence all values are shown.
+Some expressions are evaluated repeatedly, hence all values are shown.
 
-``` clojure
-$ (ea/examine (dotimes [i 5] (print (* i i))))
-; (dotimes [i 5] (print (* i i)))
-;                ¦      ¦
-;                ¦      16, 9, 4, 1, 0
-;                nil, nil, nil, nil, nil
+```clojure
+erdos.assert=> (examine (dotimes [i 5] (print (* i i))))
+
+(dotimes [i 5] (print (* i i)))
+               ¦      ¦
+               ¦      16, 9, 4, 1, 0
+               nil, nil, nil, nil, nil
 ```
 
 Only the already realized part is printed for lazy sequences.
@@ -105,6 +106,6 @@ erdos.assert=> (examine (reduce + (doall (map * (range) (range 0 10 2)))))
 
 ## License
 
-Copyright © 2019 Janos Erdos
+Copyright © 2017-2021 Janos Erdos
 
 Distributed under the [Eclipse Public License version 1.0](https://www.eclipse.org/legal/epl-1.0/).
