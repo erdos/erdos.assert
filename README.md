@@ -1,27 +1,27 @@
 # Power Assertion macro for Clojure
 
-I love the [Power Assertions](http://groovy-lang.org/testing.html#_power_assertions) feature in the Groovy language. It makes writing tests and finding bugs easier. This is an implementation for the Clojure programming language with support for macros and lazy sequences.
+The [Power Assertions](http://groovy-lang.org/testing.html#_power_assertions) feature in the Groovy language is a strong tool, it makes writing tests and finding bugs easier. This is an implementation for the Clojure programming language with support for macros and lazy sequences.
 
 It prints subexpressions on assert failure.
 
 <img src="docs/animation-1.gif"/>
 
-And each evaluations of subexpressions are printed.
+And each evaluations of subexpressions are shown.
 
 <img src="docs/animation-3.gif"/>
 
 [![Clojars Project](https://img.shields.io/clojars/v/io.github.erdos/erdos.assert.svg)](https://clojars.org/io.github.erdos/erdos.assert)
 [![EPL 1.0](https://img.shields.io/badge/License-EPL%201.0-red.svg)](https://www.eclipse.org/legal/epl-1.0/)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/erdos/erdos.assert/issues)
-[![HitCount](http://hits.dwyl.io/erdos/erdos.assert.svg)](http://hits.dwyl.io/erdos/erdos.assert)
+[![HitCount](http://hits.dwyl.io/erdos/erdosassert.svg)](http://hits.dwyl.io/erdos/erdosassert)
 ![Clojure CI](https://github.com/erdos/erdos.assert/workflows/Clojure%20CI/badge.svg)
 
 ## Usage
 
 This library provides four small macros for easier debugging.
  - The `examine` macro can be used to trace parts of an evaluated expression. Debug information is printed to the standard output and the value of the expression is returned.
- - The `assert` macro is similar to `clojure.core/assert` but it also wraps the examined information in the thrown `AssertionError` instance.
- - The `verify` macro is just like `assert`, but it throws an `ExceptionError` instead.
+ - The `assert` macro is similar to `clojure.core/assert`. It wraps the examined information in the thrown `AssertionError` instance.
+ - The `verify` macro is just like `assert`, but it throws an `ExceptionInfo` instead.
  - The `is` macro is a drop-in replacement to `clojure.test/is` for unit tests.
 
 **First**, add the dependency to your `project.clj`.
