@@ -105,6 +105,10 @@
    form))
 
 
+;; name of the global logger method.
+(def ^:private logger-sym '+assert-logger+)
+
+
 (defmulti ^:private pass-add-loggers (fn [e] (when (seq? e) (first e))))
 
 
@@ -115,6 +119,9 @@
 (defmethod pass-add-loggers nil [e]
   (cond ; (seq? e) - other implementations
 
+        (and (symbol? e) (:show (meta e)))
+        (list logger-sym (-> e meta ::key) e)
+
         (vector? e) (mapv pass-add-loggers e)
 
         (set? e) (set (map pass-add-loggers e))
@@ -123,9 +130,6 @@
                          (map pass-add-loggers (vals e)))
 
         :default e))
-
-;; name of the global logger method.
-(def ^:private logger-sym '+assert-logger+)
 
 
 (defmethod pass-add-loggers :default [e]
