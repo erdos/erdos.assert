@@ -415,6 +415,7 @@
 
 
 (defmacro is
+  "Drop-in replacement for the clojure.test/is macro."
   ([expr] `(is ~expr nil))
   ([expr msg]
    `(try
@@ -427,5 +428,19 @@
       (catch Throwable t#
         (test/do-report
          {:type :error, :message ~msg, :expected '~expr, :actual t#})))))
+
+
+(defmacro are
+  "Drop-in replacement for the clojure.test/are macro."
+  [argv expr & args]
+  (assert (vector? argv))
+  (assert (zero? (rem (count args) (count argv))))
+  (let [argv-symbols (set (filter symbol? (tree-seq coll? seq argv)))
+        expr         (postwalk-code (fn [e] (if (argv-symbols e) (with-meta e {:show true}) e)) expr)]
+    (cons 'do
+          (for [part (partition (count argv) args)]
+            `(let [~argv ~(vec part)]
+              (is ~expr))))))
+
 
 'good
