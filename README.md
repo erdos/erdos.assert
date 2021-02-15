@@ -18,11 +18,11 @@ And each evaluations of subexpressions are shown.
 
 ## Usage
 
-This library provides four small macros for easier debugging.
+This library provides five small macros for easier debugging.
  - The `examine` macro can be used to trace parts of an evaluated expression. Debug information is printed to the standard output and the value of the expression is returned.
  - The `assert` macro is similar to `clojure.core/assert`. It wraps the examined information in the thrown `AssertionError` instance.
  - The `verify` macro is just like `assert`, but it throws an `ExceptionInfo` instead.
- - The `is` macro is a drop-in replacement for `clojure.test/is` for unit tests.
+ - The `is` and `are` macros are drop-in replacements for `clojure.test/is` and `clojure.test/are` used in unit tests.
 
 **First**, add the dependency to your `project.clj`.
 
