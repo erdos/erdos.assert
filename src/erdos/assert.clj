@@ -397,7 +397,7 @@
      `(let [[result# print#] ~(emit-code e)]
         (when-not @result#
           (->> @print#
-               (str ~@(if (seq msg) [~msg \newline] ["Assertion failed." \newline]))
+               (str ~@(if (seq msg) [msg \newline] ["Assertion failed." \newline]))
                (new AssertionError)
                (throw)))))))
 
@@ -447,8 +447,10 @@
 (defmacro are
   "Drop-in replacement for the clojure.test/are macro."
   [argv expr & args]
-  (assert (vector? argv))
-  (assert (zero? (rem (count args) (count argv))))
+  (assert (vector? argv)
+          "First argument should be a list of symbols.")
+  (assert (zero? (rem (count args) (count argv)))
+          "The number of parameters for each test case should match the number of elements in the first parameter.")
   (let [argv-symbols (set (filter symbol? (tree-seq coll? seq argv)))
         expr         (postwalk-code (fn [e] (if (argv-symbols e) (with-show-meta e) e)) expr)]
     (cons 'do
