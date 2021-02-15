@@ -108,6 +108,19 @@ erdos.assert=> (examine (reduce + (doall (map * (range) (range 0 10 2)))))
           (0 2 8 18 32) 
 ```
 
+Add the `^:show` metadata to function arguments to show the values on every function invocation:
+
+```clojure
+erdos.assert=> (examine (mapv (fn [^:show a] (mod a 3)) (range 10)))
+
+(mapv (fn [a] (mod a 3)) (range 10))
+¦          ¦  ¦          ¦
+¦          ¦  ¦          (0 1 2 3 4 5 6 7 8 9)
+¦          ¦  0, 1, 2, 0, 1, 2, 0, 1, 2, 0
+¦          0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+[0 1 2 0 1 2 0 1 2 0]
+```
+
 ## License
 
 Copyright © 2017-2021 Janos Erdos

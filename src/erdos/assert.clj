@@ -20,6 +20,9 @@
 (def ^:private ellipsis "…")
 (def ^:private pipe "¦") ; also check "║" and "│"
 
+(defn- show-meta [x] (:show (meta x)))
+(defn- with-show-meta [x] (vary-meta x assoc :show true))
+(defn- get-meta-key [x] (::key (meta x)))
 
 (defn- quoted?
   "Decides if parameter is a quoted sexp form."
@@ -119,8 +122,8 @@
 (defmethod pass-add-loggers nil [e]
   (cond ; (seq? e) - other implementations
 
-        (and (symbol? e) (:show (meta e)))
-        (list logger-sym (-> e meta ::key) e)
+        (and (symbol? e) (show-meta e))
+        (list logger-sym (get-meta-key e) e)
 
         (vector? e) (mapv pass-add-loggers e)
 
@@ -133,7 +136,7 @@
 
 
 (defmethod pass-add-loggers :default [e]
-  (if-let [m-key (-> e meta ::key)]
+  (if-let [m-key (get-meta-key e)]
     (list logger-sym m-key (map pass-add-loggers e))
     (map pass-add-loggers e)))
 
@@ -144,14 +147,21 @@
                 (if (seq? form)
                   (list (cons (first form) (map pass-add-loggers (next form))))
                   (list* form (map pass-add-loggers args))))
-    (::key (meta form)) (->> (list logger-sym (::key (meta form))))))
+    (get-meta-key form) (->> (list logger-sym (get-meta-key form)))))
 
 
 ;; (examine ((fn* ([x] (inc x))) 3))
 (defmethod pass-add-loggers 'fn* [[_ & clauses]]
   (if (every? seq? clauses)
-    (list* 'fn* (for [[params & bodies] clauses] (list* params (map pass-add-loggers bodies))))
-    (list* 'fn* (first clauses) (map pass-add-loggers (next clauses)))))
+    (list* 'fn*
+           (for [[params & bodies] clauses
+                 :let [param-shown (filter show-meta (tree-seq coll? seq (first clauses)))]]
+             `(~params ~@(for [p param-shown] (list logger-sym (get-meta-key p) p))
+                       ~@(map pass-add-loggers bodies))))
+    (let [param-shown (filter show-meta (tree-seq coll? seq (first clauses)))]
+      `(fn* ~(first clauses)
+            ~@(for [p param-shown] (list logger-sym (get-meta-key p) p))
+            ~@(map pass-add-loggers (next clauses))))))
 
 
 (defmethod pass-add-loggers 'finally [[_ & bodies]]
@@ -165,13 +175,17 @@
 ;
 ; (defmethod pass-add-loggers 'do [[_ & bodies]]
 ;  `(do ~@(map pass-add-loggers bodies)))
-;
-; (defmethod pass-add-loggers 'let* [[_ bindings & bodies]]
-;   `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)] [k (pass-add-loggers v)]))]
-;      ~@(map pass-add-loggers bodies)))
-;
-; (defmethod pass-add-loggers 'letfn* [[_ bind & bodies]]
-;   `(letfn* ~bind ~@(map pass-add-loggers bodies)))
+
+(defmethod pass-add-loggers 'let* [[_ bindings & bodies]]
+  `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)] 
+                         [k (cond->> (pass-add-loggers v)
+                              (show-meta k) (list logger-sym (get-meta-key k)))]))]
+     ~@(map pass-add-loggers bodies)))
+
+
+(defmethod pass-add-loggers 'letfn* [[_ bindings & bodies]]
+  `(letfn* [~@(mapcat vec (for [[k v] (partition 2 bindings)] [k (pass-add-loggers v)]))]
+    ~@(map pass-add-loggers bodies)))
 
 
 (defn- print-line-prep
@@ -307,7 +321,7 @@
   (let [[strout pad out-delay] (print-line-prep)
         bars     (atom {})]
     ((fn act [expr]
-       (when-let [m-key (-> expr meta ::key)]
+       (when-let [m-key (get-meta-key expr)]
          (swap! bars assoc (int @pad) m-key))
        (print-line-impl strout act expr))
      expr)
@@ -436,7 +450,7 @@
   (assert (vector? argv))
   (assert (zero? (rem (count args) (count argv))))
   (let [argv-symbols (set (filter symbol? (tree-seq coll? seq argv)))
-        expr         (postwalk-code (fn [e] (if (argv-symbols e) (with-meta e {:show true}) e)) expr)]
+        expr         (postwalk-code (fn [e] (if (argv-symbols e) (with-show-meta e) e)) expr)]
     (cons 'do
           (for [part (partition (count argv) args)]
             `(let [~argv ~(vec part)]

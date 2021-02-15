@@ -107,6 +107,34 @@
      2 3
      4 5))
 
+(defmacro is-print [expression & lines]
+  (let [expected (str (clojure.string/join \newline lines) \newline)]
+    `(is (= ~expected (second (ea/examine-str ~expression))))))
+
+(deftest test-show-meta
+  (testing "Add ^:show metadata to let binding"
+    (is-print (doseq [^:show i (range 3)])
+              "(doseq [i (range 3)])"
+              "¦       ¦ ¦"
+              "nil     ¦ (0 1 2) "
+              "        0, 1, 2 "))
+  (testing "Add ^:show metadata to function parameter"
+    (is-print (mapv (fn [^:show a] (inc a)) [1 2 3])
+              "(mapv (fn [a] (inc a)) [1 2 3])"
+              "¦          ¦  ¦"
+              "[2 3 4]    ¦  2, 3, 4 "
+              "           1, 2, 3 ")
+    (is-print (mapv (fn* [^:show a] (inc a)) [1 2 3])
+              "(mapv (fn* [a] (inc a)) [1 2 3])"
+              "¦           ¦  ¦"
+              "[2 3 4]     ¦  2, 3, 4 "
+              "            1, 2, 3 ")
+    (is-print (mapv (fn* ([^:show a] (inc a))) [1 2 3])
+              "(mapv (fn* ([a] (inc a))) [1 2 3])"
+              "¦            ¦  ¦"
+              "[2 3 4]      ¦  2, 3, 4 "
+              "             1, 2, 3 ")))
+
 (comment ;; run these test cases manually
 
   (examine (* (+ 19 17) (- 19 17)))
@@ -122,4 +150,7 @@
   (examine (doseq [i [1 2 3 4]] (print (* i i)) (print (* 2 i))))
 
   (-macroexpand-code '(doseq [i [1 2 3]] XXXX YYYY))
+
+  ;; here the value of 'a is also printed
+  (examine (mapv (fn [^:show a] (+ a 1)) [1 2 3 4]))
 )
