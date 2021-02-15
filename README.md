@@ -27,7 +27,7 @@ This library provides four small macros for easier debugging.
 **First**, add the dependency to your `project.clj`.
 
 ```clojure
-[io.github.erdos/erdos.assert "0.2.0"]
+[io.github.erdos/erdos.assert "0.2.1"]
 ```
 
 **Second**, require the namespace:
