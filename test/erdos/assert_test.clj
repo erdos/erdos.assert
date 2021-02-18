@@ -10,6 +10,10 @@
     (eval `(defn ~(symbol (str "-" k)) [~'& args#]
              (apply (deref ~v) args#)))))
 
+(defmacro is-print [expression & lines]
+  (let [expected (str (clojure.string/join \newline lines) \newline)]
+    `(is (= ~expected (second (ea/examine-str ~expression))))))
+
 (deftest test-verify
   (is (nil? (ea/verify (= 1 1))))
   (is (thrown? clojure.lang.ExceptionInfo (ea/verify (= 1 2)))))
@@ -80,23 +84,37 @@
     )
   (testing "Function forms")
   (testing "Macros"
+    (is-print ,(-> 4 (inc) (* 2) (dec))
+              "(-> 4 (inc) (* 2) (dec))"
+              "¦     ¦     ¦"
+              "9     5     10 ")
     (testing "Second branch of macro is not printed"
       (ea/examine-str (and (* 1 2) (+ 1 2)))))
   (testing "Multiple values"
-    (ea/examine-str (dotimes [i 4] (println (* i i)))))
+    (is-print ,(dotimes [i 4] (println (* i i)))
+              "(dotimes [i 4] (println (* i i)))"
+              "               ¦        ¦"
+              "               ¦        0, 1, 4, 9 "
+              "               nil, nil, nil, nil "))
   (testing "Java reflection"
-    (is (= ["llo", "(. \"hello\" substring 2)\n           ¦\n           \"llo\" \n"]
-           (ea/examine-str (. "hello" substring 2))))
-    (is (= ["llo", "(. \"hello\" (substring 2))\n           ¦\n           \"llo\" \n"]
-           (ea/examine-str (. "hello" (substring 2)))))
-    (is (= ["llo" "(.substring \"hello\" 2)\n ¦\n \"llo\" \n"]
-           (ea/examine-str (.substring "hello" 2)))))
+    (is-print ,(. "hello" substring 2)
+              "(. \"hello\" substring 2)"
+              "           ¦"
+              "           \"llo\" ")
+    (is-print ,(. "hello" (substring 2))
+              "(. \"hello\" (substring 2))"
+              "           ¦"
+              "           \"llo\" ")
+    (is-print ,(.substring "hello" 2)
+              "(.substring \"hello\" 2)"
+              " ¦"
+              " \"llo\" "))
   (testing "Function call"
-    (is (= [() "()\n"]
-           (ea/examine-str ())))
-    (is (= [[3 3 4]
-            "(vector (+ 1 2) 3 4)\n¦       ¦\n[3 3 4] 3 \n"]
-           (ea/examine-str (vector (+ 1 2) 3 4))))))
+    (is-print () "()")
+    (is-print ,(vector (+ 1 2) 3 4)
+              "(vector (+ 1 2) 3 4)"
+              "¦       ¦"
+              "[3 3 4] 3 ")))
 
 (deftest test-is
   (ea/is (= 2 (inc 1))))
@@ -106,10 +124,6 @@
      1 2
      2 3
      4 5))
-
-(defmacro is-print [expression & lines]
-  (let [expected (str (clojure.string/join \newline lines) \newline)]
-    `(is (= ~expected (second (ea/examine-str ~expression))))))
 
 (deftest test-show-meta
   (testing "Add ^:show metadata to let binding"
