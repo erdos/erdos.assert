@@ -61,23 +61,24 @@
 
 
 (defn- draw-line [heights]
+  (clojure.core/assert (sorted? heights))
   (->
-   (fn [{:keys [x' result]}
-               [x {:keys [width height string]}]]
-             (dotimes [t (- x x')] (print " "))
-             (if (pos? height)
-               (do (print pipe)
-                   {:x'     (+ x 1)
-                    :result (assoc result x {:width width
-                                             :height (dec height)
-                                             :string string})})
-               (do (print string)
-                   (print " ")
-                   {:x' (+ x width)
-                    :result result})))
-   (reduce {:x' 0, :result (sorted-map)} heights)
-   (doto (do (println))) ;; print a new line after evaluated.
-   :result))
+   (fn [[x' result]
+         x {:keys [width height string]}]
+      (dotimes [t (- x x')]
+        (print " "))
+      (if (pos? height)
+        (do (print pipe)
+            [(inc x)
+             (assoc result x {:width width
+                              :height (dec height)
+                              :string string})])
+        (do (print string)
+            (print " ")
+            [(+ x width) result])))
+   (reduce-kv [0 (sorted-map)] heights)
+   (second)
+   (doto (do (println))))) ;; print a new line after evaluated.
 
 
 (defn- java-method-accessor [x]
@@ -356,8 +357,7 @@
                              :string (x->str x)
                              :width  width})))]
     (->> (keys x->vals)
-         (sort)
-         (reverse)
+         (sort >)
          (reduce rf (sorted-map))
          (iterate draw-line)
          (take-while not-empty)
@@ -397,7 +397,7 @@
      `(let [[result# print#] ~(emit-code e)]
         (when-not @result#
           (->> @print#
-               (str ~@(if (seq msg) [msg \newline] ["Assertion failed." \newline]))
+               (str ~(or (not-empty msg) "Assert failed:") \newline)
                (new AssertionError)
                (throw)))))))
 
