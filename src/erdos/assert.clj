@@ -136,7 +136,8 @@
 
 
 (defmethod pass-add-loggers :default [e]
-  (if-let [m-key (get-meta-key e)]
+  (if-let [m-key (or (get-meta-key e)
+                     (get-meta-key (first e)))]
     (list logger-sym m-key (map pass-add-loggers e))
     (map pass-add-loggers e)))
 

@@ -91,6 +91,10 @@
               "(-> 4 (inc) (* 2) (dec))"
               "¦     ¦     ¦"
               "9     5     10 ")
+    (is-print ,(-> 4 inc (* 2) (dec))
+              "(-> 4 inc (* 2) (dec))"
+              "¦     ¦   ¦"
+              "9     5   10 ")
     (testing "Second branch of macro is not printed"
       (ea/examine-str (and (* 1 2) (+ 1 2)))))
   (testing "Multiple values"
