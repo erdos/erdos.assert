@@ -196,6 +196,8 @@
 (defmethod pass-add-loggers 'recur [[_ & arguments]]
   (list* 'recur (map pass-add-loggers arguments)))
 
+(defmethod pass-add-loggers 'do [[_ & arguments]]
+  (list* 'do (map pass-add-loggers arguments)))
 
 (defn- print-line-prep
   "Creates a buffer and a writer function. Returns a triple of:
@@ -377,17 +379,38 @@
                             [k# (get @state-atom v#)]))))))
 
 
+(defn- cleanup-recur
+  "Makes sure that (recur) calls are kept in tail position and are not wrapped in logging."
+  [expr]
+  (postwalk-code
+   (fn [expr]
+     (cond (not (seq? expr))
+           expr
+
+           (#{'loop* 'fn* 'quote} (first expr))
+           expr
+
+           (= 'recur (first expr))
+           (vary-meta expr assoc :recur true)
+
+           (and (= logger-sym (first expr)) (:recur (meta (last expr))))
+           (last expr) ;; strip logger call
+
+           :else
+           (cond-> expr (some (comp :recur meta) (next expr)) (vary-meta assoc :recur true))))
+     expr))
+
+
 (defn- emit-code [expr]
   (let [keyed-expr          (pass-add-keys expr)
         [out bars]          (print-line keyed-expr)
-        keyed-expanded-expr (macroexpand-code keyed-expr)
-        logged-exprs        (pass-add-loggers keyed-expanded-expr)]
+        expr                (-> keyed-expr (macroexpand-code) (pass-add-loggers) (cleanup-recur))]
     `(let [state# (atom {})
            ~logger-sym  (fn [i# val#]
-                    ;; we stringify here because values may change during evaluation
+                          ;; we stringify here because values may change during evaluation
                           (swap! state# update i# (fnil conj []) (-safe-pr-str val#))
                           val#)
-           e#     (delay ~logged-exprs)]
+           e#     (delay ~expr)]
         [e# (-emit-code-print e# ~out ~bars state#)])))
 
 

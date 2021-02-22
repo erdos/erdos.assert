@@ -97,6 +97,12 @@
               "9     5   10 ")
     (testing "Second branch of macro is not printed"
       (ea/examine-str (and (* 1 2) (+ 1 2)))))
+  (testing "Loop expression with explicit recur"
+    (is-print ,(loop [i 4] (when (pos? i) (println :> i) (recur (dec i))))
+              "(loop [i 4] (when (pos? i) (println :> i) (recur (dec i))))"
+              "¦                 ¦        ¦                     ¦"
+              "nil               ¦        nil, nil, nil, nil    3, 2, 1, 0 "
+              "                  true, true, true, true, false "))
   (testing "Multiple values"
     (is-print ,(dotimes [i 4] (println (* i i)))
               "(dotimes [i 4] (println (* i i)))"
