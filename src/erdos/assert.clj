@@ -132,7 +132,7 @@
         (map? e) (zipmap (map pass-add-loggers (keys e))
                          (map pass-add-loggers (vals e)))
 
-        :default e))
+        :else e))
 
 
 (defmethod pass-add-loggers :default [e]
@@ -195,7 +195,7 @@
    - A function returning the current horizontal offset.
    - A function returning the string value of the print buffer."
   []
-  (let [out  (new java.lang.StringBuilder)]
+  (let [out (new java.lang.StringBuilder)]
     [(fn strout [^String s] (.append out s))
      (fn length [] (.length out))
      (fn string [] (str out))]))
@@ -207,11 +207,10 @@
 (defn- rest*
   "Like clojure.core/rest but returns nil when form is already realized and tail is nil."
   [x]
-  (as->
-      (cond
-        (instance? clojure.lang.Cons x) (.more ^clojure.lang.Cons x)
-        :otherwise (rest x))
-      * (if (lazy? *) * (seq *))))
+  (-> (if (instance? clojure.lang.Cons x)
+        (.more ^clojure.lang.Cons x)
+        (rest x))
+      (as-> * (if (lazy? *) * (seq *)))))
 
 
 (defn- split-with-rest
@@ -335,7 +334,7 @@
            (or (list? e)
                (seq? e)
                (symbol? e)) (vary-meta e assoc ::key (list 'quote (gensym "powerassert")))
-           :default e))
+           :else e))
    expr))
 
 
