@@ -64,18 +64,18 @@
   (clojure.core/assert (sorted? heights))
   (->
    (fn [[x' result]
-         x {:keys [width height string]}]
-      (dotimes [t (- x x')]
-        (print " "))
-      (if (pos? height)
-        (do (print pipe)
-            [(inc x)
-             (assoc result x {:width width
-                              :height (dec height)
-                              :string string})])
-        (do (print string)
-            (print " ")
-            [(+ x width) result])))
+        x {:keys [width height string]}]
+     (dotimes [t (- x x')]
+       (print " "))
+     (if (pos? height)
+       (do (print pipe)
+           [(inc x)
+            (assoc result x {:width width
+                             :height (dec height)
+                             :string string})])
+       (do (print string)
+           (print " ")
+           [(+ x width) result])))
    (reduce-kv [0 (sorted-map)] heights)
    (second)
    (doto (do (println))))) ;; print a new line after evaluated.
@@ -112,6 +112,12 @@
 (def ^:private logger-sym '+assert-logger+)
 
 
+(defn- with-logger-of [meta-key-holder expression]
+  (if-let [key (get-meta-key meta-key-holder)]
+    (list logger-sym key expression)
+    expression))
+
+
 (defmulti ^:private pass-add-loggers (fn [e] (when (seq? e) (first e))))
 
 
@@ -123,7 +129,7 @@
   (cond ; (seq? e) - other implementations
 
         (and (symbol? e) (show-meta e))
-        (list logger-sym (get-meta-key e) e)
+        (with-logger-of e e)
 
         (vector? e) (mapv pass-add-loggers e)
 
@@ -143,12 +149,12 @@
 
 
 (defmethod pass-add-loggers '. [[_ target form & args]]
-  (cond-> (list* '.
-                (pass-add-loggers target)
-                (if (seq? form)
-                  (list (cons (first form) (map pass-add-loggers (next form))))
-                  (list* form (map pass-add-loggers args))))
-    (get-meta-key form) (->> (list logger-sym (get-meta-key form)))))
+  (with-logger-of form
+    (list* '.
+           (pass-add-loggers target)
+           (if (seq? form)
+             (list (cons (first form) (map pass-add-loggers (next form))))
+             (list* form (map pass-add-loggers args))))))
 
 
 ;; (examine ((fn* ([x] (inc x))) 3))
@@ -157,11 +163,11 @@
     (list* 'fn*
            (for [[params & bodies] clauses
                  :let [param-shown (filter show-meta (tree-seq coll? seq (first clauses)))]]
-             `(~params ~@(for [p param-shown] (list logger-sym (get-meta-key p) p))
+             `(~params ~@(for [p param-shown] (with-logger-of p p))
                        ~@(map pass-add-loggers bodies))))
     (let [param-shown (filter show-meta (tree-seq coll? seq (first clauses)))]
       `(fn* ~(first clauses)
-            ~@(for [p param-shown] (list logger-sym (get-meta-key p) p))
+            ~@(for [p param-shown] (with-logger-of p p))
             ~@(map pass-add-loggers (next clauses))))))
 
 
@@ -176,17 +182,19 @@
 ;
 ; (defmethod pass-add-loggers 'do [[_ & bodies]]
 ;  `(do ~@(map pass-add-loggers bodies)))
+;  
 
-(defmethod pass-add-loggers 'let* [[_ bindings & bodies]]
-  `(let* [~@(mapcat vec (for [[k v] (partition 2 bindings)] 
-                         [k (cond->> (pass-add-loggers v)
-                              (show-meta k) (list logger-sym (get-meta-key k)))]))]
-     ~@(map pass-add-loggers bodies)))
+(doseq [form '[let* letfn* loop*]]
+  (defmethod pass-add-loggers form [[form bindings & bodies :as expression]]
+    (with-logger-of expression
+      `(~form [~@(mapcat vec (for [[k v] (partition 2 bindings)]
+                                [k (cond->> (pass-add-loggers v)
+                                     (show-meta k) (with-logger-of k))]))]
+              ~@(map pass-add-loggers bodies)))))
 
 
-(defmethod pass-add-loggers 'letfn* [[_ bindings & bodies]]
-  `(letfn* [~@(mapcat vec (for [[k v] (partition 2 bindings)] [k (pass-add-loggers v)]))]
-    ~@(map pass-add-loggers bodies)))
+(defmethod pass-add-loggers 'recur [[_ & arguments]]
+  (list* 'recur (map pass-add-loggers arguments)))
 
 
 (defn- print-line-prep
@@ -240,7 +248,7 @@
 ;; Prints lists in the usual edn format. Lazy parts of the lists are printed with ellipsis.
 (defmethod print-line-impl java.util.List [strout print expr]
   (cond
-  
+
     (and (list? expr) (quoted? expr))
     (do ;; if quoted form
       (strout "'")
@@ -361,12 +369,12 @@
 
 (defn -emit-code-print [value-delay print-result-str bars-map state-atom]
   (delay
-    (deref value-delay)
-    (with-out-str
-      (println print-result-str)
-      (print-bars (into {} (for [[k# v#] bars-map
-                                 :when (contains? @state-atom v#)]
-                              [k# (get @state-atom v#)]))))))
+   (deref value-delay)
+   (with-out-str
+     (println print-result-str)
+     (print-bars (into {} (for [[k# v#] bars-map
+                                :when (contains? @state-atom v#)]
+                            [k# (get @state-atom v#)]))))))
 
 
 (defn- emit-code [expr]
@@ -377,8 +385,8 @@
     `(let [state# (atom {})
            ~logger-sym  (fn [i# val#]
                     ;; we stringify here because values may change during evaluation
-                    (swap! state# update i# (fnil conj []) (-safe-pr-str val#))
-                    val#)
+                          (swap! state# update i# (fnil conj []) (-safe-pr-str val#))
+                          val#)
            e#     (delay ~logged-exprs)]
         [e# (-emit-code-print e# ~out ~bars state#)])))
 

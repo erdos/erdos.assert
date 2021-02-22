@@ -100,8 +100,8 @@
   (testing "Multiple values"
     (is-print ,(dotimes [i 4] (println (* i i)))
               "(dotimes [i 4] (println (* i i)))"
-              "               ¦        ¦"
-              "               ¦        0, 1, 4, 9 "
+              "¦              ¦        ¦"
+              "nil            ¦        0, 1, 4, 9 "
               "               nil, nil, nil, nil "))
   (testing "Java reflection"
     (is-print ,(. "hello" substring 2)
