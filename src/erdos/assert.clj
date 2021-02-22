@@ -192,17 +192,13 @@
 (defn- print-line-prep
   "Creates a buffer and a writer function. Returns a triple of:
    - A function that prints to a local buffer.
-   - An atom holding the current horizontal offset.
-   - A delay holding the string value of the print buffer."
+   - A function returning the current horizontal offset.
+   - A function returning the string value of the print buffer."
   []
-  (let [pad (atom 0)
-        out  (new java.lang.StringBuilder)
-        strout   (fn [^String x]
-                   (.append out x)
-                   (swap! pad + (count x)))]
-    [strout
-     pad
-     (delay (str out))]))
+  (let [out  (new java.lang.StringBuilder)]
+    [(fn strout [^String s] (.append out s))
+     (fn length [] (.length out))
+     (fn string [] (str out))]))
 
 
 (defn- lazy? [x] (and (instance? clojure.lang.IPending x) (not (realized? x))))
@@ -319,14 +315,14 @@
    - string of the print result
    - a map of horizontal offset to ::key identifier"
   [expr]
-  (let [[strout pad out-delay] (print-line-prep)
-        bars     (atom {})]
+  (let [[strout get-pad get-val] (print-line-prep)
+        bars (volatile! {})]
     ((fn act [expr]
        (when-let [m-key (get-meta-key expr)]
-         (swap! bars assoc (int @pad) m-key))
+         (vswap! bars assoc (get-pad) m-key))
        (print-line-impl strout act expr))
      expr)
-    [@out-delay @bars]))
+    [(get-val) @bars]))
 
 
 (defn- pass-add-keys

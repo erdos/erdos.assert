@@ -1,5 +1,5 @@
 (ns erdos.assert-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest testing is]]
             [erdos.assert :as ea]))
 
 ;; imports all private vars with "-" prefix for testing
@@ -23,6 +23,9 @@
   (is (thrown? AssertionError (ea/assert (= 1 2))))))
 
 (deftest test-lazy?
+  (testing "Delays"
+    (is (-lazy? (delay 1)))
+    (is (not (-lazy? (doto (delay 1) deref)))))
   (is (not (-lazy? (range 100))))
   (is (not (-lazy? [1 2 3])))
   (is (-lazy? (map inc (range 10))))
