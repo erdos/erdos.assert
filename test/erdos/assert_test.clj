@@ -110,8 +110,8 @@
               "           \"llo\" ")
     (is-print ,(.substring "hello" 2)
               "(.substring \"hello\" 2)"
-              " ¦"
-              " \"llo\" "))
+              "¦"
+              "\"llo\" "))
   (testing "Function call"
     (is-print () "()")
     (is-print ,(vector (+ 1 2) 3 4)

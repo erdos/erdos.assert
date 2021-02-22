@@ -100,8 +100,7 @@
      (if (quoted? x)
        x
        (if-let [accessor-sym (java-method-accessor x)]
-         (let [[member target & args] x]
-           (list* '. target (with-meta accessor-sym (meta member)) (map macroexpand-code args)))
+         (list* '. (second x) (with-meta accessor-sym (meta x)) (map macroexpand-code (nnext x)))
          (let [e (macroexpand x)]
            (if (instance? clojure.lang.IObj e)
              (with-meta e (meta x))
