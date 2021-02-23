@@ -95,6 +95,10 @@
               "(-> 4 inc (* 2) (dec))"
               "¦     ¦   ¦"
               "9     5   10 ")
+    (is-print ,(or (and (inc 3) (inc 2) nil (inc 1)) nil)
+              "(or (and (inc 3) (inc 2) nil (inc 1)) nil)"
+              "¦   ¦    ¦       ¦"
+              "nil nil  4       3 ")
     (testing "Second branch of macro is not printed"
       (ea/examine-str (and (* 1 2) (+ 1 2)))))
   (testing "Loop expression with explicit recur"
