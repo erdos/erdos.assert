@@ -1,4 +1,4 @@
-(defproject io.github.erdos/erdos.assert "0.2.3-SNAPSHOT"
+(defproject io.github.erdos/erdos.assert "0.2.3"
   :description "Smart assertions library for Clojure"
   :url "http://github.com/erdos/erdos.assert"
   :license {:name "Eclipse Public License"
